@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CliNotes - Patient Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.8/css/line.css">
+  <link rel="stylesheet" href="/src/style.css" />
+  <link rel="stylesheet" href="/src/patient.css" />
+</head>
+<body class="patient-body">
+  <nav class="top-bar">
+    <div class="top-bar-left">
+      <div class="app-logo">CliNotes</div>
+    </div>
+    <div class="top-bar-center">
+      <a href="#" class="nav-link active">Dashboard</a>
+      <a href="#" class="nav-link">My Records</a>
+    </div>
+    <div class="top-bar-right">
+      <div class="settings-btn"><i class="uil uil-setting"></i></div>
+      <div class="profile-avatar">S</div>
+    </div>
+  </nav>
+
+  <main class="dashboard-container">
+    <section class="welcome-section">
+      <div class="welcome-left">
+        <h1 class="greeting">Hello, Sarah</h1>
+        <p class="subtext">Here’s a summary of your recent health activity</p>
+      </div>
+      <div class="welcome-right">
+        <div class="stat-card">
+          <span class="stat-value">4</span>
+          <span class="stat-label">Total Consultations</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value">Oct 12</span>
+          <span class="stat-label">Last Visit</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="main-grid">
+      <!-- Row 1 -->
+      <section class="col-8">
+        <div class="card recent-consultations">
+          <div class="card-header">
+            <h2>Recent Consultations</h2>
+          </div>
+          <div class="card-body">
+            <div class="consultation-item active" data-id="1">
+              <div class="item-icon"><i class="uil uil-stethoscope"></i></div>
+              <div class="item-details">
+                <div class="item-title">General Checkup</div>
+                <div class="item-meta">Dr. Smith (DR-1042) • Oct 12, 2023</div>
+                <div class="item-summary">Routine annual physical and blood work review.</div>
+              </div>
+              <div class="item-arrow"><i class="uil uil-angle-right-b"></i></div>
+            </div>
+            <div class="consultation-item" data-id="2">
+              <div class="item-icon"><i class="uil uil-heart-medical"></i></div>
+              <div class="item-details">
+                <div class="item-title">Cardiology Follow-up</div>
+                <div class="item-meta">Dr. Jones (DR-2101) • Sep 05, 2023</div>
+                <div class="item-summary">Follow up on hypertension management.</div>
+              </div>
+              <div class="item-arrow"><i class="uil uil-angle-right-b"></i></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="col-4">
+        <div class="card health-snapshot">
+          <div class="card-header">
+            <h2>Health Snapshot</h2>
+          </div>
+          <div class="card-body">
+            <div class="snapshot-group">
+              <h3 class="snapshot-title"><i class="uil uil-heart-rate"></i> Ongoing Conditions</h3>
+              <div class="snapshot-badge tint-blue">Mild Hypertension</div>
+            </div>
+            <div class="snapshot-group">
+              <h3 class="snapshot-title"><i class="uil uil-capsule"></i> Current Medications</h3>
+              <div class="snapshot-badge tint-teal">Lisinopril 10mg</div>
+              <div class="snapshot-badge tint-teal">Vitamin D3</div>
+            </div>
+            <div class="snapshot-group">
+              <h3 class="snapshot-title"><i class="uil uil-bell"></i> Alerts</h3>
+              <div class="snapshot-badge tint-orange">Annual flu shot due</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Row 2 -->
+      <section class="col-8">
+        <div class="card consultation-details">
+          <div class="card-header">
+            <h2>Consultation Details</h2>
+            <div class="header-actions">
+              <button class="audio-btn"><i class="uil uil-play"></i> Play Audio Summary</button>
+            </div>
+          </div>
+          <div class="card-body dynamic-content" id="details-content">
+            <!-- Populated by JS -->
+            <div class="detail-section">
+              <h3 class="detail-label">What you came in for</h3>
+              <p class="detail-text">You came in for your annual physical examination and to review the results of your recent blood tests.</p>
+            </div>
+            <div class="detail-section">
+              <h3 class="detail-label">What was discussed</h3>
+              <p class="detail-text">We reviewed your blood work, which looked great overall. We discussed your current blood pressure levels, which are slightly elevated but well-managed with your current medication.</p>
+            </div>
+            <div class="detail-section">
+              <h3 class="detail-label">What the doctor found</h3>
+              <p class="detail-text">Heart rate and lungs are normal. Blood pressure is 128/82. Cholesterol levels have improved since your last visit.</p>
+            </div>
+            <div class="detail-section">
+              <h3 class="detail-label">What happens next</h3>
+              <p class="detail-text">Continue taking your medication as prescribed. Let's schedule a follow-up in 6 months to check your blood pressure again.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="col-4">
+        <div class="card doctor-recommendations">
+          <div class="card-header recommendations-header">
+            <h2><i class="uil uil-file-medical"></i> Doctor's Instructions</h2>
+          </div>
+          <div class="card-body">
+            <ul class="recommendation-list">
+              <li>
+                <strong>Medications:</strong>
+                <span>Continue Lisinopril 10mg daily.</span>
+              </li>
+              <li>
+                <strong>Follow-ups:</strong>
+                <span>Schedule a blood pressure check in 6 months.</span>
+              </li>
+              <li>
+                <strong>Tests:</strong>
+                <span>No new tests needed at this time.</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- Row 3 -->
+      <section class="col-12">
+        <div class="card documents-files">
+          <div class="card-header border-bottom">
+            <h2>Documents & Files</h2>
+            <div class="docs-tabs">
+              <button class="doc-tab active">All</button>
+              <button class="doc-tab">Prescriptions</button>
+              <button class="doc-tab">Reports</button>
+              <button class="doc-tab">Lab Results</button>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <div class="doc-list">
+              <div class="doc-item">
+                <div class="doc-info">
+                  <div class="doc-icon"><i class="uil uil-flask"></i></div>
+                  <div>
+                    <div class="doc-title">Comprehensive Metabolic Panel</div>
+                    <div class="doc-meta">Oct 10, 2023 • Lab Result</div>
+                  </div>
+                </div>
+                <div class="doc-actions">
+                  <button class="action-btn"><i class="uil uil-eye"></i> View</button>
+                  <button class="action-btn primary"><i class="uil uil-download-alt"></i> Download</button>
+                </div>
+              </div>
+              <div class="doc-item">
+                <div class="doc-info">
+                  <div class="doc-icon"><i class="uil uil-prescription-bottle"></i></div>
+                  <div>
+                    <div class="doc-title">Lisinopril Prescription Refill</div>
+                    <div class="doc-meta">Oct 12, 2023 • Prescription</div>
+                  </div>
+                </div>
+                <div class="doc-actions">
+                  <button class="action-btn"><i class="uil uil-eye"></i> View</button>
+                  <button class="action-btn primary"><i class="uil uil-download-alt"></i> Download</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+  
+  <script type="module" src="/src/patient-mock.js"></script>
+</body>
+</html>

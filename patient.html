@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CliNotes - Patient Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.8/css/line.css">
+  <link rel="stylesheet" href="/src/style.css" />
+  <link rel="stylesheet" href="/src/patient.css" />
+</head>
+<body class="patient-body">
+  <nav class="top-bar">
+    <div class="top-bar-left">
+      <div class="app-logo">CliNotes</div>
+    </div>
+    <div class="top-bar-center">
+      <a href="#" class="nav-link active">Dashboard</a>
+      <a href="#" class="nav-link">My Records</a>
+    </div>
+    <div class="top-bar-right">
+      <div class="settings-btn"><i class="uil uil-setting"></i></div>
+      <div class="profile-avatar">S</div>
+    </div>
+  </nav>
+
+  <main class="dashboard-container">
+    <section class="welcome-section">
+      <div class="welcome-left">
+        <h1 class="greeting">Hello, Sarah</h1>
+        <p class="subtext">Here’s a summary of your recent health activity</p>
+      </div>
+      <div class="welcome-right">
+        <div class="stat-card">
+          <span class="stat-value">4</span>
+          <span class="stat-label">Total Consultations</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value">Oct 12</span>
+          <span class="stat-label">Last Visit</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="main-grid">
+      <!-- Row 1 -->
+      <section class="col-8">
+        <div class="card recent-consultations">
+          <div class="card-header">
+            <h2>Recent Consultations</h2>
+          </div>
+          <div class="card-body">
+            <!-- Consultations loaded via JS -->
+          </div>
+        </div>
+      </section>
+
+      <section class="col-4">
+        <div class="card health-snapshot">
+          <div class="card-header">
+            <h2>Health Snapshot</h2>
+          </div>
+          <div class="card-body">
+             <!-- Snapshot loaded via JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Row 2 -->
+      <section class="col-8">
+        <div class="card consultation-details">
+          <div class="card-header">
+            <h2>Consultation Details</h2>
+            <div class="header-actions">
+              <button class="audio-btn"><i class="uil uil-play"></i> Play Audio Summary</button>
+            </div>
+          </div>
+          <div class="card-body dynamic-content" id="details-content">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </section>
+
+      <section class="col-4">
+        <div class="card doctor-recommendations">
+          <div class="card-header recommendations-header">
+            <h2><i class="uil uil-file-medical"></i> Doctor's Instructions</h2>
+          </div>
+          <div class="card-body">
+             <!-- Recommendations loaded via JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Row 3 -->
+      <section class="col-12">
+        <div class="card documents-files">
+          <div class="card-header border-bottom">
+            <h2>Documents & Files</h2>
+            <div class="docs-tabs">
+              <button class="doc-tab active">All</button>
+              <button class="doc-tab">Prescriptions</button>
+              <button class="doc-tab">Reports</button>
+              <button class="doc-tab">Lab Results</button>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <div class="doc-list">
+               <!-- Documents loaded via JS -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+  
+  <script type="module" src="/src/patient.js"></script>
+</body>
+</html>

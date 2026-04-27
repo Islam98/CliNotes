@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CliNotes - Login</title>
+    <!-- Import Google Fonts: Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- Unicons for Icons -->
+    <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.8/css/line.css">
+    
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <main class="login-layout">
+        <!-- Left Banner section with calming gradient/brand -->
+        <div class="login-brand">
+          <div class="brand-content">
+            <h1 class="brand-title">CliNotes</h1>
+            <p class="brand-subtitle">AI-Powered Clinical Documentation</p>
+            
+            <div class="feature-card">
+              <i class="uil uil-microphone feature-icon"></i>
+              <div class="feature-text">
+                <h3>Smart Transcriptions</h3>
+                <p>Seamlessly blending Arabic and English medical terminology.</p>
+              </div>
+            </div>
+          </div>
+          <!-- Decorative blurred elements -->
+          <div class="brand-blob blob-1"></div>
+          <div class="brand-blob blob-2"></div>
+        </div>
+
+        <!-- Right Form section -->
+        <div class="login-form-container">
+          <div class="login-card">
+            <div class="login-header">
+              <h2>Welcome back</h2>
+              <p>Please enter your details to sign in.</p>
+            </div>
+
+            <div class="role-selector">
+              <button class="role-btn active" data-role="doctor">
+                <i class="uil uil-stethoscope"></i>
+                <span>Doctor</span>
+              </button>
+              <button class="role-btn" data-role="patient">
+                <i class="uil uil-user"></i>
+                <span>Patient</span>
+              </button>
+              <button class="role-btn" data-role="admin">
+                <i class="uil uil-setting"></i>
+                <span>Admin</span>
+              </button>
+            </div>
+
+            <div class="auth-toggle-wrapper">
+              <button class="auth-toggle-btn active" id="toggle-login">Login</button>
+              <button class="auth-toggle-btn" id="toggle-signup">Sign Up</button>
+            </div>
+
+            <form id="login-form" class="auth-form">
+              <!-- Name (Signup Only) -->
+              <div class="input-row signup-only" style="display: none;">
+                <div class="input-group flex-1">
+                  <label for="firstName">First Name</label>
+                  <div class="input-wrapper">
+                    <i class="uil uil-user input-icon"></i>
+                    <input type="text" id="firstName" placeholder="First Name" />
+                  </div>
+                </div>
+                <div class="input-group flex-1">
+                  <label for="lastName">Last Name</label>
+                  <div class="input-wrapper">
+                    <input type="text" id="lastName" placeholder="Last Name" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Email -->
+              <div class="input-group">
+                <label for="email">Email</label>
+                <div class="input-wrapper">
+                  <i class="uil uil-envelope input-icon"></i>
+                  <input type="email" id="email" placeholder="Enter your email" required />
+                </div>
+              </div>
+
+              <!-- Password -->
+              <div class="input-group">
+                <label for="password">Password</label>
+                <div class="input-wrapper">
+                  <i class="uil uil-lock-alt input-icon"></i>
+                  <input type="password" id="password" placeholder="••••••••" required />
+                  <button type="button" class="password-toggle" id="toggle-pwd">
+                    <i class="uil uil-eye-slash"></i>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Doctor Fields (Signup Only) -->
+              <div class="signup-fields-doctor" style="display: none;">
+                <div class="input-group">
+                  <label for="specialty">Specialty</label>
+                  <div class="input-wrapper">
+                    <i class="uil uil-medical-drip input-icon"></i>
+                    <select id="specialty" class="form-select">
+                      <option value="">Select Specialty...</option>
+                      <option value="General Practice">General Practice</option>
+                      <option value="Cardiology">Cardiology</option>
+                      <option value="Neurology">Neurology</option>
+                      <option value="Pediatrics">Pediatrics</option>
+                      <option value="Internal Medicine">Internal Medicine</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Patient Fields (Signup Only) -->
+              <div class="signup-fields-patient" style="display: none;">
+                <div class="input-row">
+                  <div class="input-group flex-1">
+                    <label for="age">Age</label>
+                    <div class="input-wrapper">
+                      <input type="number" id="age" placeholder="e.g. 30" min="0" max="150" />
+                    </div>
+                  </div>
+                  <div class="input-group flex-1">
+                    <label for="gender">Gender</label>
+                    <div class="input-wrapper">
+                      <select id="gender" class="form-select">
+                        <option value="">Select...</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-options login-only">
+                <label class="checkbox-wrapper">
+                  <input type="checkbox" id="remember" />
+                  <span class="checkmark"></span>
+                  <span class="checkbox-label">Remember for 30 days</span>
+                </label>
+                <a href="#" class="forgot-link">Forgot password?</a>
+              </div>
+
+              <button type="submit" class="submit-btn" id="submit-btn">
+                Sign In to Dashboard
+              </button>
+            </form>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Error Modal -->
+    <div class="modal-overlay hidden" id="errorModal">
+      <div class="modal-content error-modal">
+        <div class="modal-header">
+          <h3 style="color: #ef4444;"><i class="uil uil-exclamation-triangle"></i> Error</h3>
+          <button class="close-btn" id="closeErrorModal"><i class="uil uil-times"></i></button>
+        </div>
+        <div class="modal-body" style="padding: 24px;">
+          <p id="errorModalMessage" style="color: var(--text-primary); font-size: 16px; line-height: 1.5;"></p>
+        </div>
+        <div class="modal-footer">
+          <button class="primary-btn w-100" id="ackErrorModal">Okay</button>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

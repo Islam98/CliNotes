@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Doctor Dashboard - CliNotes</title>
+    <!-- Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.8/css/line.css">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="/src/style.css" />
+    <link rel="stylesheet" href="/src/doctor.css" />
+  </head>
+  <body class="dashboard-body">
+    <!-- TOP BAR -->
+    <header class="top-bar">
+      <div class="top-bar-left">
+        <div class="logo">CliNotes</div>
+      </div>
+      <div class="top-bar-center">
+        <div class="search-wrapper">
+          <i class="uil uil-search search-icon"></i>
+          <input type="text" placeholder="Search patients, notes, or sessions..." class="search-input">
+        </div>
+      </div>
+      <div class="top-bar-right">
+        <button class="icon-btn" aria-label="Notifications">
+          <i class="uil uil-bell"></i>
+          <span class="notification-badge"></span>
+        </button>
+        <div class="avatar">
+          <img src="https://ui-avatars.com/api/?name=Dr.+Smith&background=2F6FED&color=fff&bold=true" alt="Doctor Avatar">
+        </div>
+      </div>
+    </header>
+
+    <!-- MAIN GRID CONTAINER -->
+    <main class="dashboard-container">
+      <div class="dashboard-grid">
+        
+        <!-- ROW 0: Quick Actions -->
+        <div class="col-12 quick-actions-row">
+          <button class="primary-btn prominent-start-btn" id="startConsultationBtn">
+            <i class="uil uil-record-audio"></i> Start New Consultation
+          </button>
+        </div>
+
+        <!-- ROW 1 -->
+        <!-- Today's Schedule -->
+        <div class="card schedule-card col-8">
+          <div class="card-header">
+            <h3>Today's Schedule</h3>
+            <button class="text-btn">View All</button>
+          </div>
+          <div class="card-body list-body">
+            <div class="list-row schedule-row">
+              <div class="row-info">
+                <span class="time">09:00 AM</span>
+                <div class="patient-details">
+                  <div class="name">Ahmed Hassan <span class="patient-id">#PT-8291</span></div>
+                  <span class="type">Follow-up</span>
+                </div>
+              </div>
+              <div class="row-actions">
+                <span class="badge status-ready">Scheduled</span>
+                <button class="action-btn start-from-schedule-btn">Start Consultation</button>
+                <button class="danger-icon-btn cancel-btn" aria-label="Cancel Appointment" title="Cancel Appointment"><i class="uil uil-times"></i></button>
+              </div>
+            </div>
+            <div class="list-row schedule-row">
+              <div class="row-info">
+                <span class="time">09:45 AM</span>
+                <div class="patient-details">
+                  <div class="name">Sara Magdy <span class="patient-id">#PT-1032</span></div>
+                  <span class="type">Initial Consult</span>
+                </div>
+              </div>
+              <div class="row-actions">
+                <span class="badge status-ready">Scheduled</span>
+                <button class="action-btn start-from-schedule-btn">Start Consultation</button>
+                <button class="danger-icon-btn cancel-btn" aria-label="Cancel Appointment" title="Cancel Appointment"><i class="uil uil-times"></i></button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Alerts -->
+        <div class="card alerts-card col-4">
+          <div class="card-header">
+            <h3>Alerts</h3>
+          </div>
+          <div class="card-body list-body">
+            <div class="alert-item high">
+              <i class="uil uil-exclamation-circle"></i>
+              <div class="alert-text">Abnormal lab results for Youssef</div>
+            </div>
+            <div class="alert-item low">
+              <i class="uil uil-calendar-alt"></i>
+              <div class="alert-text">Tomorrow: 3 Initial Consults</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ROW 2: Draft Notes for Review (PRIMARY) -->
+        <div class="card drafts-card col-12 primary-section">
+          <div class="card-header">
+            <h2>Draft Notes for Review</h2>
+            <span class="badge count-badge">3 Pending</span>
+          </div>
+          <div class="card-body list-body">
+            
+            <div class="list-row draft-row">
+              <div class="row-info">
+                <div class="avatar-sm">SM</div>
+                <div class="draft-details">
+                  <span class="name">Sara Magdy</span>
+                  <span class="date">Recorded 10 mins ago • AI Processing Complete</span>
+                </div>
+              </div>
+              <div class="row-actions">
+                <span class="badge status-ready">Ready for Review</span>
+                <button class="outline-btn">Approve</button>
+                <button class="primary-btn">Review</button>
+              </div>
+            </div>
+            
+            <!-- Expanded Review State showcasing Highlight Blocks from the workflow -->
+            <div class="draft-expanded-view">
+              <h4>Extracted Highlight Blocks</h4>
+              <div class="highlight-block">
+                <div class="highlight-sidebar">
+                  <span class="timestamp">12:04-12:19</span>
+                  <button class="play-btn"><i class="uil uil-play"></i></button>
+                </div>
+                <div class="highlight-content">
+                  <input type="text" class="label-input" value="Chief Complaint" />
+                  <p class="transcript-snippet editable" contenteditable="true">Patient experiencing persistent headaches in frontal region, accompanied by mild nausea during the mornings...</p>
+                  <div class="drag-handles">
+                    <div class="handle"></div>
+                    <div class="handle"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="list-row draft-row">
+              <div class="row-info">
+                <div class="avatar-sm">MY</div>
+                <div class="draft-details">
+                  <span class="name">Mona Youssef</span>
+                  <span class="date">Yesterday • Revision Requested</span>
+                </div>
+              </div>
+              <div class="row-actions">
+                <span class="badge status-revision">Needs Edit</span>
+                <button class="outline-btn">Approve</button>
+                <button class="primary-btn">Review</button>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+
+        <!-- ROW 3 -->
+        <!-- Recent Patients -->
+        <div class="card recent-card col-8">
+          <div class="card-header">
+            <h3>Recent Patients</h3>
+          </div>
+          <div class="card-body list-body">
+            <div class="list-row minimal-row">
+              <div class="name">Khaled Amin</div>
+              <div class="last-visit">Last visit: 2 days ago</div>
+              <button class="icon-btn"><i class="uil uil-angle-right"></i></button>
+            </div>
+            <div class="list-row minimal-row">
+              <div class="name">Amira Fathy</div>
+              <div class="last-visit">Last visit: 1 week ago</div>
+              <button class="icon-btn"><i class="uil uil-angle-right"></i></button>
+            </div>
+            <div class="list-row minimal-row">
+              <div class="name">Omar Tarek</div>
+              <div class="last-visit">Last visit: 2 weeks ago</div>
+              <button class="icon-btn"><i class="uil uil-angle-right"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI Summary Preview -->
+        <div class="card summary-card col-4">
+          <div class="card-header">
+            <h3>AI Summary Preview</h3>
+          </div>
+          <div class="card-body">
+            <div class="summary-section">
+              <h4>Chief Complaint</h4>
+              <p contenteditable="true" class="editable-text">Frontal headache, mild nausea.</p>
+            </div>
+            <div class="summary-section">
+              <h4>Findings</h4>
+              <p contenteditable="true" class="editable-text">Vitals normal. No neurological deficits observed.</p>
+            </div>
+            <div class="summary-section">
+              <h4>Medications</h4>
+              <p contenteditable="true" class="editable-text">Paracetamol 500mg as needed.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ROW 4 -->
+        <!-- Session History -->
+        <div class="card history-card col-12">
+          <div class="card-header">
+            <h3>Session History</h3>
+          </div>
+          <div class="card-body list-body">
+            <div class="list-row history-row">
+              <div class="row-info">
+                <span class="date-tag">Oct 24</span>
+                <span class="name">Nour El-Din</span>
+              </div>
+              <div class="history-actions">
+                <button class="secondary-btn"><i class="uil uil-file-alt"></i> Transcript</button>
+                <button class="secondary-btn"><i class="uil uil-headphones"></i> Audio</button>
+              </div>
+            </div>
+            <div class="list-row history-row">
+              <div class="row-info">
+                <span class="date-tag">Oct 23</span>
+                <span class="name">Leila Tarek</span>
+              </div>
+              <div class="history-actions">
+                <button class="secondary-btn"><i class="uil uil-file-alt"></i> Transcript</button>
+                <button class="secondary-btn"><i class="uil uil-headphones"></i> Audio</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- SMART MOMENT CAPTURE FAB -->
+    <button class="fab-capture" id="momentCaptureBtn" aria-label="Capture Moment">
+      <i class="uil uil-waveform"></i>
+    </button>
+    
+    <!-- TOAST NOTIFICATION -->
+    <div class="toast" id="captureToast">
+      <span>Moment captured</span>
+      <button class="undo-btn">Undo</button>
+    </div>
+
+    <!-- PATIENT SELECTION MODAL -->
+    <div id="patientSelectionModal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Select Patient</h3>
+          <button class="close-btn" id="closePatientModalBtn"><i class="uil uil-times"></i></button>
+        </div>
+        <div class="modal-body">
+          <h4>Suggested from Schedule</h4>
+          <div class="suggested-patients">
+             <button class="patient-suggestion-card" data-id="PT-8291">
+               <span class="name">Ahmed Hassan</span>
+               <span class="patient-id">#PT-8291</span>
+             </button>
+             <button class="patient-suggestion-card" data-id="PT-1032">
+               <span class="name">Sara Magdy</span>
+               <span class="patient-id">#PT-1032</span>
+             </button>
+          </div>
+          <div class="divider"><span>OR</span></div>
+          <h4>Enter New Patient ID</h4>
+          <input type="text" id="newPatientIdInput" class="modal-input" placeholder="e.g. PT-9999" autocomplete="off">
+        </div>
+        <div class="modal-footer">
+          <button class="primary-btn w-100" id="modalStartRecordBtn">Start Recording</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACTIVE RECORDING OVERLAY -->
+    <div id="recordingOverlay" class="recording-overlay hidden">
+      <div class="recording-status">
+        <div class="recording-indicator pulsing"></div>
+        <span class="recording-time" id="recordingTimer">00:00</span>
+      </div>
+      <div class="recording-actions">
+        <button class="record-action-btn highlight-btn" id="overlayHighlightBtn">
+          <i class="uil uil-star"></i> Highlight Key Moment
+        </button>
+        <button class="record-action-btn note-btn" id="overlayNoteBtn">
+          <i class="uil uil-edit"></i> Add Manual Note
+        </button>
+        <button class="record-action-btn stop-btn" id="overlayStopBtn">
+          <i class="uil uil-stop-circle"></i> Stop Recording
+        </button>
+      </div>
+    </div>
+
+    <script type="module" src="/src/doctor-mock.js"></script>
+  </body>
+</html>
