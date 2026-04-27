@@ -521,6 +521,25 @@ a:hover {
   color: var(--text-secondary);
 }
 
+/* BUTTONS (Global) */
+.primary-btn {
+  background-color: var(--primary-color);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-btn);
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 700;
+  transition: all var(--transition-fast);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.primary-btn:hover {
+  background-color: #255CC4;
+  box-shadow: 0 4px 12px rgba(47, 111, 237, 0.2);
+}
+
 /* Utilities */
 .uil-spin {
   animation: spin 1s linear infinite;

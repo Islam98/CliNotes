@@ -48,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function updateFormUI() {
-    formError.style.display = 'none';
+    hideError();
 
     // Show/hide based on mode
     loginOnlyElements.forEach(el => el.style.display = isSignup ? 'none' : 'flex');

@@ -206,15 +206,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         newPatientInput.style.borderColor = '#EF4444';
         return;
       }
-      const finalPatientId = selectedPatientId || newPatientInput.value.trim();
+      let finalPatientId = selectedPatientId || newPatientInput.value.trim();
+      
+      // Temporary override for testing mock patient
+      if (finalPatientId === 'PT-9999') {
+        finalPatientId = '99999999-9999-9999-9999-999999999999';
+      }
       
       try {
-        await api.data.createConsultation(finalPatientId);
-        // Reload schedule after creating consultation
+        const newCons = await api.data.createConsultation(finalPatientId);
+        currentConsultationId = newCons.id;
         await loadDoctorData();
       } catch(e) {
         console.error("Error creating consultation", e);
-        // In real app, show error toast
+        alert("Failed to create consultation. Please ensure the Patient ID is a valid user ID.");
+        return; // Abort recording if DB insert fails
       }
       
       closeModal();
@@ -222,34 +228,86 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  let mediaRecorder;
+  let audioChunks = [];
+  let currentConsultationId = null;
+
   function formatTime(totalSeconds) {
     const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
     const s = (totalSeconds % 60).toString().padStart(2, '0');
     return `${m}:${s}`;
   }
 
-  function startRecordingUI() {
-    isRecording = true;
-    recordingSeconds = 0;
-    recordingTimer.innerText = '00:00';
-    recordingOverlay.classList.remove('hidden');
+  async function startRecordingUI() {
+    try {
+      // 1. Request microphone BEFORE showing UI
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // 2. Microphone granted, show UI
+      isRecording = true;
+      recordingSeconds = 0;
+      recordingTimer.innerText = '00:00';
+      recordingOverlay.classList.remove('hidden');
 
-    timerInterval = setInterval(() => {
-      recordingSeconds++;
-      recordingTimer.innerText = formatTime(recordingSeconds);
-    }, 1000);
+      timerInterval = setInterval(() => {
+        recordingSeconds++;
+        recordingTimer.innerText = formatTime(recordingSeconds);
+      }, 1000);
+
+      // 3. Setup Recorder
+      mediaRecorder = new MediaRecorder(stream);
+      audioChunks = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunks.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        stream.getTracks().forEach(track => track.stop());
+
+        if (currentConsultationId) {
+          try {
+            overlayStopBtn.innerHTML = '<i class="uil uil-spinner-alt uil-spin"></i> Saving...';
+            overlayStopBtn.disabled = true;
+            
+            await api.data.uploadAudio(currentConsultationId, audioBlob);
+          } catch (e) {
+            console.error("Failed to upload audio:", e);
+            alert("Storage upload failed. Please ensure Supabase Storage RLS policies allow authenticated inserts.");
+          } finally {
+            overlayStopBtn.innerHTML = '<i class="uil uil-stop-circle"></i> Stop Recording';
+            overlayStopBtn.disabled = false;
+            recordingOverlay.classList.add('hidden');
+            loadDoctorData(); 
+          }
+        } else {
+          recordingOverlay.classList.add('hidden');
+        }
+      };
+
+      mediaRecorder.start();
+    } catch (err) {
+      console.error("Microphone access denied or not available:", err);
+      alert("Microphone access is required to record a consultation.");
+    }
   }
 
-  function stopRecordingUI() {
+  function stopRecordingUI(skipSave = false) {
     isRecording = false;
     clearInterval(timerInterval);
-    recordingOverlay.classList.add('hidden');
-    // Reload UI when stopped as it typically creates a draft note
-    loadDoctorData();
+    
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+    } else {
+      recordingOverlay.classList.add('hidden');
+    }
   }
 
   if (overlayStopBtn) {
-    overlayStopBtn.addEventListener('click', stopRecordingUI);
+    overlayStopBtn.addEventListener('click', () => stopRecordingUI(false));
   }
 
   // Logout Logic

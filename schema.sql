@@ -233,3 +233,21 @@ GRANT ALL ON TABLE public.audio TO anon, authenticated;
 GRANT ALL ON TABLE public.ai_summary TO anon, authenticated;
 GRANT ALL ON TABLE public.doctor_recommendation TO anon, authenticated;
 GRANT ALL ON TABLE public.highlight TO anon, authenticated;
+
+-- STORAGE POLICIES (For the private 'consultation-audio' bucket)
+-- Note: These run against the storage.objects table to allow file uploads.
+
+-- 1. Allow authenticated doctors to insert audio files
+CREATE POLICY "Allow authenticated inserts" ON storage.objects
+FOR INSERT TO authenticated WITH CHECK (bucket_id = 'consultation-audio');
+
+-- 2. Allow authenticated users to select/read files
+CREATE POLICY "Allow authenticated reads" ON storage.objects
+FOR SELECT TO authenticated USING (bucket_id = 'consultation-audio');
+
+-- 3. Allow authenticated users to update/delete (if needed)
+CREATE POLICY "Allow authenticated updates" ON storage.objects
+FOR UPDATE TO authenticated USING (bucket_id = 'consultation-audio');
+
+CREATE POLICY "Allow authenticated deletes" ON storage.objects
+FOR DELETE TO authenticated USING (bucket_id = 'consultation-audio');
