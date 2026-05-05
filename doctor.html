@@ -13,6 +13,9 @@
     <!-- CSS -->
     <link rel="stylesheet" href="/src/style.css" />
     <link rel="stylesheet" href="/src/doctor.css" />
+    
+    <!-- QR Code Library -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   </head>
   <body class="dashboard-body">
     <!-- TOP BAR -->
@@ -21,9 +24,15 @@
         <div class="logo">CliNotes</div>
       </div>
       <div class="top-bar-center">
-        <div class="search-wrapper">
+        <div class="search-wrapper" id="searchWrapper">
           <i class="uil uil-search search-icon"></i>
-          <input type="text" placeholder="Search patients, notes, or sessions..." class="search-input">
+          <input type="text" placeholder="Search patients by name..." class="search-input" id="patientSearchInput" autocomplete="off">
+          <!-- Search Results Dropdown -->
+          <div class="search-dropdown hidden" id="searchDropdown">
+            <div class="search-results" id="searchResults">
+              <!-- Dynamic results -->
+            </div>
+          </div>
         </div>
       </div>
       <div class="top-bar-right">
@@ -128,22 +137,23 @@
 
     <!-- PATIENT SELECTION MODAL -->
     <div id="patientSelectionModal" class="modal-overlay hidden">
-      <div class="modal-content">
+      <div class="modal-content" id="patientModalContent" style="transition: background-color 0.3s ease;">
         <div class="modal-header">
-          <h3>Select Patient</h3>
+          <h3>Scan Patient Card</h3>
           <button class="close-btn" id="closePatientModalBtn"><i class="uil uil-times"></i></button>
         </div>
-        <div class="modal-body">
-          <h4>Suggested from Schedule</h4>
-          <div class="suggested-patients">
-             <!-- Patient suggestions will be loaded via JS -->
+        <div class="modal-body" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 250px;">
+          <!-- QR Scanner Container -->
+          <div id="qr-reader" style="width: 100%; max-width: 400px; border-radius: 12px; overflow: hidden; margin-bottom: 16px;"></div>
+          
+          <!-- Success State -->
+          <div id="qr-success" class="hidden" style="text-align: center; padding: 24px;">
+            <i class="uil uil-check-circle" style="font-size: 72px; color: #10B981;"></i>
+            <h2 id="scannedPatientName" style="margin-top: 16px; color: #065F46; font-weight: 800; font-size: 24px;">Patient Identified</h2>
           </div>
-          <div class="divider"><span>OR</span></div>
-          <h4>Enter New Patient ID</h4>
-          <input type="text" id="newPatientIdInput" class="modal-input" placeholder="e.g. PT-9999" autocomplete="off">
         </div>
-        <div class="modal-footer">
-          <button class="primary-btn w-100" id="modalStartRecordBtn">Start Recording</button>
+        <div class="modal-footer hidden" id="modalFooter" style="border-top: none;">
+          <button class="primary-btn w-100" id="modalStartRecordBtn" style="background-color: #10B981;">Start Recording</button>
         </div>
       </div>
     </div>

@@ -171,6 +171,46 @@ CREATE POLICY "Doctors can manage highlights" ON highlight
     EXISTS (SELECT 1 FROM consultation c WHERE c.id = highlight.consultation_id AND c.doctor_id = auth.uid())
   );
 
+-- Doctors can search all patients (for dashboard search)
+CREATE POLICY "Doctors can search all patients" ON patient_profile
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM profiles p
+      WHERE p.id = auth.uid()
+      AND p.role = 'doctor'
+    )
+  );
+
+-- Doctors can view all consultations (for patient profile view)
+CREATE POLICY "Doctors can view patient consultations" ON consultation
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM profiles p
+      WHERE p.id = auth.uid()
+      AND p.role = 'doctor'
+    )
+  );
+
+-- Doctors can view all AI summaries
+CREATE POLICY "Doctors can view all summaries" ON ai_summary
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM profiles p
+      WHERE p.id = auth.uid()
+      AND p.role = 'doctor'
+    )
+  );
+
+-- Doctors can view all recommendations
+CREATE POLICY "Doctors can view all recommendations" ON doctor_recommendation
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM profiles p
+      WHERE p.id = auth.uid()
+      AND p.role = 'doctor'
+    )
+  );
+
 -- ==========================================
 -- SECURE REGISTRATION TRIGGER (THE FIX!)
 -- ==========================================

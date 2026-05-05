@@ -213,6 +213,57 @@ export const api = {
         
       if (error) throw error;
       return data.signedUrl;
+    },
+
+    /**
+     * Search patients by name (partial match, case-insensitive)
+     */
+    async searchPatients(query) {
+      const { data, error } = await supabase
+        .from('patient_profile')
+        .select('id, name, age, gender')
+        .ilike('name', `%${query}%`)
+        .limit(10);
+
+      if (error) throw error;
+      return data;
+    },
+
+    /**
+     * Get all consultations for a specific patient with AI summaries and recommendations.
+     * Used by doctors viewing a patient profile.
+     */
+    async getPatientConsultations(patientId) {
+      const { data, error } = await supabase
+        .from('consultation')
+        .select(`
+          *,
+          doctor:doctor_id(name, specialty),
+          ai_summary(summary_text, structured_data),
+          doctor_recommendation(recommendations_text)
+        `)
+        .eq('patient_id', patientId)
+        .order('date_time', { ascending: false });
+
+      if (error) throw error;
+      return data;
+    },
+
+    /**
+     * Get the current doctor's profile info
+     */
+    async getDoctorInfo() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+
+      const { data, error } = await supabase
+        .from('doctor')
+        .select('name, specialty')
+        .eq('id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') throw error;
+      return data;
     }
   }
 };

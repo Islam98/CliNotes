@@ -56,8 +56,8 @@ body {
   justify-content: center;
   align-items: center;
 }
-
 /* Helpers */
+.hidden { display: none !important; }
 a {
   color: var(--primary-color);
   text-decoration: none;

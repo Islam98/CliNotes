@@ -1,4 +1,5 @@
 import { api } from './api.js';
+import { supabase } from './supabase.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   // Authentication check
@@ -151,62 +152,95 @@ document.addEventListener('DOMContentLoaded', async () => {
   const patientModal = document.getElementById('patientSelectionModal');
   const closeModalBtn = document.getElementById('closePatientModalBtn');
   const modalStartBtn = document.getElementById('modalStartRecordBtn');
-  const newPatientInput = document.getElementById('newPatientIdInput');
-  const suggestionCards = document.querySelectorAll('.patient-suggestion-card');
-  const scheduleStartBtns = document.querySelectorAll('.start-from-schedule-btn');
-
+  
   const recordingOverlay = document.getElementById('recordingOverlay');
   const recordingTimer = document.getElementById('recordingTimer');
   const overlayStopBtn = document.getElementById('overlayStopBtn');
   
-  let selectedPatientId = null;
   let isRecording = false;
   let timerInterval = null;
   let recordingSeconds = 0;
+  
+  let html5QrCodeScanner = null;
+  let scannedPatientId = null;
 
   function openModal() {
     patientModal.classList.remove('hidden');
+    document.getElementById('qr-reader').style.display = 'block';
+    document.getElementById('qr-success').classList.add('hidden');
+    document.getElementById('modalFooter').classList.add('hidden');
+    document.getElementById('patientModalContent').style.backgroundColor = 'white';
+    scannedPatientId = null;
+
+    if (window.Html5QrcodeScanner) {
+      if (!html5QrCodeScanner) {
+        html5QrCodeScanner = new window.Html5QrcodeScanner(
+          "qr-reader",
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          false // verbose
+        );
+      }
+      
+      html5QrCodeScanner.render(
+        (decodedText) => {
+          if (!decodedText || decodedText.trim().length < 4) return; // Prevent false positives
+          
+          scannedPatientId = decodedText;
+          html5QrCodeScanner.clear(); // Stops camera and clears UI
+          
+          document.getElementById('qr-reader').style.display = 'none';
+          document.getElementById('qr-success').classList.remove('hidden');
+          document.getElementById('modalFooter').classList.remove('hidden');
+          document.getElementById('patientModalContent').style.backgroundColor = '#ECFDF5';
+          
+          let queryId = decodedText;
+          if (queryId === 'PT-9999') {
+             queryId = '99999999-9999-9999-9999-999999999999';
+          }
+
+          document.getElementById('scannedPatientName').innerText = "Loading...";
+          supabase.from('patient_profile')
+            .select('name')
+            .eq('id', queryId)
+            .single()
+            .then(({data, error}) => {
+              if (data && data.name) {
+                document.getElementById('scannedPatientName').innerText = data.name;
+              } else {
+                document.getElementById('scannedPatientName').innerText = "Unknown Patient";
+              }
+            }).catch(() => {
+              document.getElementById('scannedPatientName').innerText = "Unknown Patient";
+            });
+        },
+        (errorMessage) => {
+          // parse errors ignore
+        }
+      );
+    }
   }
 
   function closeModal() {
     patientModal.classList.add('hidden');
-    // Reset selections
-    selectedPatientId = null;
-    newPatientInput.value = '';
-    suggestionCards.forEach(c => c.classList.remove('selected'));
+    scannedPatientId = null;
+    if (html5QrCodeScanner) {
+      try {
+        html5QrCodeScanner.clear();
+      } catch(e) {}
+    }
   }
 
   if (startBtn && patientModal) {
     startBtn.addEventListener('click', openModal);
     closeModalBtn.addEventListener('click', closeModal);
 
-    // Click outside to close
     patientModal.addEventListener('click', (e) => {
       if (e.target === patientModal) closeModal();
     });
 
-    suggestionCards.forEach(card => {
-      card.addEventListener('click', () => {
-        suggestionCards.forEach(c => c.classList.remove('selected'));
-        card.classList.add('selected');
-        selectedPatientId = card.dataset.id;
-        newPatientInput.value = ''; // clear input if suggestion used
-      });
-    });
-
-    newPatientInput.addEventListener('input', () => {
-      if (newPatientInput.value.trim().length > 0) {
-        suggestionCards.forEach(c => c.classList.remove('selected'));
-        selectedPatientId = newPatientInput.value.trim();
-      }
-    });
-
     modalStartBtn.addEventListener('click', async () => {
-      if (!selectedPatientId && !newPatientInput.value.trim()) {
-        newPatientInput.style.borderColor = '#EF4444';
-        return;
-      }
-      let finalPatientId = selectedPatientId || newPatientInput.value.trim();
+      if (!scannedPatientId) return;
+      let finalPatientId = scannedPatientId;
       
       // Temporary override for testing mock patient
       if (finalPatientId === 'PT-9999') {
@@ -317,6 +351,72 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (confirm('Are you sure you want to log out?')) {
         await api.auth.signOut();
         window.location.href = '/';
+      }
+    });
+  }
+
+  // ─── Patient Search ───
+  const searchInput = document.getElementById('patientSearchInput');
+  const searchDropdown = document.getElementById('searchDropdown');
+  const searchResults = document.getElementById('searchResults');
+  let searchTimeout = null;
+
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      const query = e.target.value.trim();
+
+      if (query.length < 2) {
+        searchDropdown.classList.add('hidden');
+        return;
+      }
+
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(async () => {
+        try {
+          searchResults.innerHTML = '<div class="search-loading"><i class="uil uil-spinner-alt uil-spin"></i> Searching...</div>';
+          searchDropdown.classList.remove('hidden');
+
+          const patients = await api.data.searchPatients(query);
+
+          if (!patients || patients.length === 0) {
+            searchResults.innerHTML = '<div class="search-empty"><i class="uil uil-user-times"></i> No patients found</div>';
+            return;
+          }
+
+          searchResults.innerHTML = patients.map(p => {
+            const initials = p.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+            const meta = [p.age ? `Age ${p.age}` : '', p.gender || ''].filter(Boolean).join(' • ');
+            return `
+              <a href="/patient-profile.html?id=${p.id}" class="search-result-item">
+                <div class="search-avatar">${initials}</div>
+                <div class="search-info">
+                  <span class="search-name">${p.name}</span>
+                  <span class="search-meta">${meta || 'Patient'}</span>
+                </div>
+                <i class="uil uil-arrow-right"></i>
+              </a>
+            `;
+          }).join('');
+
+        } catch (err) {
+          console.error('Search error:', err);
+          searchResults.innerHTML = '<div class="search-empty"><i class="uil uil-exclamation-triangle"></i> Search failed</div>';
+        }
+      }, 300); // 300ms debounce
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#searchWrapper')) {
+        searchDropdown.classList.add('hidden');
+      }
+    });
+
+    // Close on Escape
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        searchDropdown.classList.add('hidden');
+        searchInput.blur();
       }
     });
   }

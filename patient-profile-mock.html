@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Patient Profile - CliNotes</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Unicons -->
+  <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.8/css/line.css">
+  
+  <link rel="stylesheet" href="/src/style.css">
+  <link rel="stylesheet" href="/src/patient-profile.css">
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <header class="top-bar">
+    <div class="top-bar-left">
+      <nav class="breadcrumb">
+        <a href="/doctor.html" class="breadcrumb-link">Dashboard</a>
+        <i class="uil uil-angle-right"></i>
+        <a href="#" class="breadcrumb-link">Patients</a>
+        <i class="uil uil-angle-right"></i>
+        <span class="breadcrumb-current" id="breadcrumbName">Loading...</span>
+      </nav>
+    </div>
+    <div class="top-bar-right">
+      <div class="doctor-avatar">
+        <span id="docInitials">DR</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="profile-container">
+    
+    <!-- Patient Header -->
+    <section class="patient-header-card">
+      <div class="header-left">
+        <div class="patient-avatar">
+          <span id="patientInitials">PT</span>
+        </div>
+        <div class="patient-info">
+          <h1 id="patientFullName">Loading Patient...</h1>
+          <p class="patient-meta" id="patientMeta">Loading Details...</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <button class="secondary-btn"><i class="uil uil-edit"></i> Add Note</button>
+        <button class="primary-btn"><i class="uil uil-microphone"></i> Start Consultation</button>
+      </div>
+    </section>
+
+    <!-- Consultation History -->
+    <section class="history-section">
+      <h2 class="section-title">Consultation History</h2>
+      
+      <div class="consultation-list" id="consultationList">
+        <!-- Mock Data for Design Purposes -->
+        
+        <!-- Expanded Card Example -->
+        <div class="consultation-card expanded">
+          <!-- Header (Always visible) -->
+          <div class="consultation-header" onclick="toggleCard(this)">
+            <div class="cons-header-left">
+              <div class="date-badge">
+                <span class="month">OCT</span>
+                <span class="day">12</span>
+                <span class="year">2023</span>
+              </div>
+              <div class="cons-preview">
+                <h3>Follow-up: Hypertension & Routine Check</h3>
+                <p>Patient reported mild headaches, BP slightly elevated. No other major complaints.</p>
+              </div>
+            </div>
+            <div class="cons-header-right">
+              <button class="card-btn play-btn" onclick="event.stopPropagation();"><i class="uil uil-play-circle"></i> Play Recording</button>
+              <button class="card-btn summary-btn" onclick="event.stopPropagation(); toggleCard(this);"><i class="uil uil-file-alt"></i> View Summary</button>
+              <button class="expand-btn"><i class="uil uil-angle-down"></i></button>
+            </div>
+          </div>
+          
+          <!-- Body (SOAP structure) -->
+          <div class="consultation-body" style="display: block;">
+            <div class="export-bar">
+              <button class="export-btn" onclick="window.print()"><i class="uil uil-print"></i> Export Record</button>
+            </div>
+            
+            <div class="soap-grid">
+              <!-- S: Subjective -->
+              <div class="soap-section">
+                <div class="soap-label">S</div>
+                <div class="soap-content">
+                  <h4>Subjective</h4>
+                  <div class="info-block">
+                    <span class="info-label">Chief Complaint</span>
+                    <p>Mild recurrent morning headaches over the past 2 weeks.</p>
+                  </div>
+                  <div class="info-block">
+                    <span class="info-label">Medical History</span>
+                    <p>Primary hypertension (diagnosed 2021). No known diabetes.</p>
+                  </div>
+                  <div class="info-block">
+                    <span class="info-label">Allergies</span>
+                    <p>Penicillin (Hives)</p>
+                  </div>
+                  <div class="info-block">
+                    <span class="info-label">Notes</span>
+                    <p>Patient states they have been compliant with current medication but missed a few doses last week due to travel.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- O: Objective -->
+              <div class="soap-section">
+                <div class="soap-label">O</div>
+                <div class="soap-content">
+                  <h4>Objective</h4>
+                  <div class="vitals-grid">
+                    <div class="vital-item">
+                      <span class="vital-label">Blood Pressure</span>
+                      <span class="vital-value warning">138/88 mmHg</span>
+                    </div>
+                    <div class="vital-item">
+                      <span class="vital-label">Heart Rate</span>
+                      <span class="vital-value">72 bpm</span>
+                    </div>
+                    <div class="vital-item">
+                      <span class="vital-label">Temperature</span>
+                      <span class="vital-value">36.8 °C</span>
+                    </div>
+                    <div class="vital-item">
+                      <span class="vital-label">Weight</span>
+                      <span class="vital-value">82 kg</span>
+                    </div>
+                  </div>
+                  <div class="info-block">
+                    <span class="info-label">Physical Examination</span>
+                    <p>Patient appears well-nourished, no acute distress. Lungs clear to auscultation bilaterally. Regular rate and rhythm.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- A: Assessment -->
+              <div class="soap-section">
+                <div class="soap-label">A</div>
+                <div class="soap-content">
+                  <h4>Assessment</h4>
+                  <div class="info-block">
+                    <span class="info-label">Diagnoses</span>
+                    <div class="tags-list">
+                      <span class="tag tag-primary">Essential Hypertension</span>
+                      <span class="tag tag-secondary">Tension Headache</span>
+                    </div>
+                  </div>
+                  <div class="info-block">
+                    <span class="info-label">Clinical Reasoning</span>
+                    <p class="assessment-notes">BP is marginally above target, likely exacerbated by recent travel stress and missed doses.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- P: Plan -->
+              <div class="soap-section">
+                <div class="soap-label">P</div>
+                <div class="soap-content">
+                  <h4>Plan</h4>
+                  <ul class="plan-list">
+                    <li><span class="plan-label">Medication</span> <span class="plan-value">Continue Lisinopril 10mg daily. Emphasized importance of adherence.</span></li>
+                    <li><span class="plan-label">Lifestyle</span> <span class="plan-value">Advised to reduce sodium intake and maintain hydration.</span></li>
+                    <li><span class="plan-label">Follow-up</span> <span class="plan-value">Return to clinic in 4 weeks for BP check.</span></li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Collapsed Card Example -->
+        <div class="consultation-card">
+          <div class="consultation-header" onclick="toggleCard(this)">
+            <div class="cons-header-left">
+              <div class="date-badge">
+                <span class="month">SEP</span>
+                <span class="day">05</span>
+                <span class="year">2023</span>
+              </div>
+              <div class="cons-preview">
+                <h3>Initial Consultation</h3>
+                <p>Initial setup and general health screening. Normal blood work results discussed.</p>
+              </div>
+            </div>
+            <div class="cons-header-right">
+              <button class="card-btn play-btn" onclick="event.stopPropagation();"><i class="uil uil-play-circle"></i> Play Recording</button>
+              <button class="card-btn summary-btn" onclick="event.stopPropagation(); toggleCard(this);"><i class="uil uil-file-alt"></i> View Summary</button>
+              <button class="expand-btn"><i class="uil uil-angle-down"></i></button>
+            </div>
+          </div>
+          <div class="consultation-body">
+            <!-- Details hidden by default -->
+            <p style="padding: 24px; color: var(--text-secondary); text-align: center;">SOAP details would be rendered here.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <script src="/src/patient-profile-mock.js" type="module"></script>
+</body>
+</html>

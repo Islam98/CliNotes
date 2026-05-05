@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Patient Profile - CliNotes</title>
+  <meta name="description" content="View patient consultation history, SOAP notes, and clinical records on CliNotes.">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Unicons -->
+  <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.8/css/line.css">
+
+  <link rel="stylesheet" href="/src/style.css">
+  <link rel="stylesheet" href="/src/patient-profile.css">
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <header class="top-bar">
+    <div class="top-bar-left">
+      <nav class="breadcrumb">
+        <a href="/doctor.html" class="breadcrumb-link">Dashboard</a>
+        <i class="uil uil-angle-right"></i>
+        <a href="/doctor.html" class="breadcrumb-link">Patients</a>
+        <i class="uil uil-angle-right"></i>
+        <span class="breadcrumb-current" id="breadcrumbName">Loading...</span>
+      </nav>
+    </div>
+    <div class="top-bar-right">
+      <div class="doctor-avatar" id="docAvatarBtn">
+        <span id="docInitials">DR</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="profile-container">
+
+    <!-- Loading State -->
+    <section class="loading-state" id="loadingState">
+      <div class="loading-spinner-wrapper">
+        <div class="profile-loading-spinner"></div>
+        <p>Loading patient records...</p>
+      </div>
+    </section>
+
+    <!-- Error State -->
+    <section class="error-state hidden" id="errorState">
+      <div class="error-content">
+        <i class="uil uil-exclamation-triangle"></i>
+        <h2>Patient Not Found</h2>
+        <p id="errorMessage">We couldn't find a patient with that ID. Please go back and try again.</p>
+        <a href="/doctor.html" class="primary-btn" style="padding: 12px 24px; text-decoration: none;">
+          <i class="uil uil-arrow-left"></i> Back to Dashboard
+        </a>
+      </div>
+    </section>
+
+    <!-- Patient Header (hidden until loaded) -->
+    <section class="patient-header-card hidden" id="patientHeader">
+      <div class="header-left">
+        <div class="patient-avatar">
+          <span id="patientInitials">PT</span>
+        </div>
+        <div class="patient-info">
+          <h1 id="patientFullName">Loading Patient...</h1>
+          <p class="patient-meta" id="patientMeta">Loading Details...</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="stats-pills">
+          <div class="stat-pill">
+            <i class="uil uil-file-medical-alt"></i>
+            <span id="totalConsultations">0</span>
+            <span class="stat-label">Consultations</span>
+          </div>
+          <div class="stat-pill">
+            <i class="uil uil-calendar-alt"></i>
+            <span id="lastVisitDate">—</span>
+            <span class="stat-label">Last Visit</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Consultation History (hidden until loaded) -->
+    <section class="history-section hidden" id="historySection">
+      <div class="section-header">
+        <h2 class="section-title">Consultation History</h2>
+        <div class="filter-pills">
+          <button class="filter-pill active" data-filter="all">All</button>
+          <button class="filter-pill" data-filter="reviewed">Reviewed</button>
+          <button class="filter-pill" data-filter="processed">Processing</button>
+          <button class="filter-pill" data-filter="pending">Pending</button>
+        </div>
+      </div>
+
+      <div class="consultation-list" id="consultationList">
+        <!-- Dynamically populated -->
+      </div>
+
+      <!-- Empty State -->
+      <div class="empty-consultations hidden" id="emptyConsultations">
+        <i class="uil uil-clipboard-notes"></i>
+        <h3>No Consultations Yet</h3>
+        <p>This patient has no recorded consultations.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="/src/patient-profile.js" type="module"></script>
+</body>
+</html>
