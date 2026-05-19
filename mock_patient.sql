@@ -10,3 +10,8 @@ VALUES (
   NOW(),
   '{"role": "patient", "name": "Test Patient", "age": 30, "gender": "Other"}'
 );
+
+-- Add a mock booking for this patient with the first available doctor
+INSERT INTO booking (doctor_id, patient_id, appointment_time, status)
+SELECT id, '99999999-9999-9999-9999-999999999999', NOW() + INTERVAL '2 hours', 'scheduled'
+FROM doctor LIMIT 1;

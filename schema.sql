@@ -2,6 +2,8 @@
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 DROP FUNCTION IF EXISTS public.handle_new_user();
 
+DROP TABLE IF EXISTS transcript CASCADE;
+DROP TABLE IF EXISTS booking CASCADE;
 DROP TABLE IF EXISTS highlight CASCADE;
 DROP TABLE IF EXISTS doctor_recommendation CASCADE;
 DROP TABLE IF EXISTS ai_summary CASCADE;
@@ -86,6 +88,28 @@ CREATE TABLE highlight (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- TRANSCRIPT (Soniox Audio Transcription)
+CREATE TABLE transcript (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  consultation_id UUID REFERENCES consultation(id) ON DELETE CASCADE,
+  transcript_text TEXT NOT NULL DEFAULT '',
+  transcript_markdown TEXT DEFAULT '',
+  soniox_transcription_id TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'error')),
+  error_message TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- BOOKING TABLE
+CREATE TABLE booking (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  doctor_id UUID REFERENCES doctor(id) ON DELETE CASCADE,
+  patient_id UUID REFERENCES patient_profile(id) ON DELETE CASCADE,
+  appointment_time TIMESTAMPTZ NOT NULL,
+  status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'completed', 'cancelled')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ==========================================
 -- ROW LEVEL SECURITY (RLS)
 -- ==========================================
@@ -98,6 +122,8 @@ ALTER TABLE audio ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_summary ENABLE ROW LEVEL SECURITY;
 ALTER TABLE doctor_recommendation ENABLE ROW LEVEL SECURITY;
 ALTER TABLE highlight ENABLE ROW LEVEL SECURITY;
+ALTER TABLE transcript ENABLE ROW LEVEL SECURITY;
+ALTER TABLE booking ENABLE ROW LEVEL SECURITY;
 
 -- Profiles: Users can view their own profile
 CREATE POLICY "Users can view own profile" ON profiles
@@ -170,6 +196,13 @@ CREATE POLICY "Doctors can manage highlights" ON highlight
   FOR ALL USING (
     EXISTS (SELECT 1 FROM consultation c WHERE c.id = highlight.consultation_id AND c.doctor_id = auth.uid())
   );
+
+-- Booking:
+CREATE POLICY "Patients can view own bookings" ON booking
+  FOR SELECT USING (auth.uid() = patient_id);
+
+CREATE POLICY "Doctors can manage own bookings" ON booking
+  FOR ALL USING (auth.uid() = doctor_id);
 
 -- Doctors can search all patients (for dashboard search)
 CREATE POLICY "Doctors can search all patients" ON patient_profile
@@ -265,17 +298,24 @@ CREATE OR REPLACE TRIGGER on_auth_user_created
 -- GRANT PRIVILEGES
 -- ==========================================
 -- Ensure the API roles have access to the new tables
-GRANT ALL ON TABLE public.profiles TO anon, authenticated;
-GRANT ALL ON TABLE public.doctor TO anon, authenticated;
-GRANT ALL ON TABLE public.patient_profile TO anon, authenticated;
-GRANT ALL ON TABLE public.consultation TO anon, authenticated;
-GRANT ALL ON TABLE public.audio TO anon, authenticated;
-GRANT ALL ON TABLE public.ai_summary TO anon, authenticated;
-GRANT ALL ON TABLE public.doctor_recommendation TO anon, authenticated;
-GRANT ALL ON TABLE public.highlight TO anon, authenticated;
+GRANT ALL ON TABLE public.profiles TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.doctor TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.patient_profile TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.consultation TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.audio TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.ai_summary TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.doctor_recommendation TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.highlight TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.transcript TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.booking TO anon, authenticated, service_role;
 
 -- STORAGE POLICIES (For the private 'consultation-audio' bucket)
 -- Note: These run against the storage.objects table to allow file uploads.
+
+DROP POLICY IF EXISTS "Allow authenticated inserts" ON storage.objects;
+DROP POLICY IF EXISTS "Allow authenticated reads" ON storage.objects;
+DROP POLICY IF EXISTS "Allow authenticated updates" ON storage.objects;
+DROP POLICY IF EXISTS "Allow authenticated deletes" ON storage.objects;
 
 -- 1. Allow authenticated doctors to insert audio files
 CREATE POLICY "Allow authenticated inserts" ON storage.objects

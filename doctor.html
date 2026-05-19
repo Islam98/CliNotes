@@ -146,6 +146,15 @@
           <!-- QR Scanner Container -->
           <div id="qr-reader" style="width: 100%; max-width: 400px; border-radius: 12px; overflow: hidden; margin-bottom: 16px;"></div>
           
+          <!-- Manual Patient ID Input for Testing -->
+          <div id="manual-patient-entry" style="width: 100%; max-width: 400px; margin-bottom: 16px; text-align: center;">
+            <p style="margin-bottom: 8px; font-size: 14px; color: #64748b;">Or enter Patient ID manually (Testing):</p>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="manualPatientIdInput" placeholder="Enter UUID (e.g. 99999999-...)" style="flex: 1; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px;" />
+              <button id="manualPatientSubmitBtn" class="primary-btn" style="padding: 10px 16px; font-size: 14px;">Confirm</button>
+            </div>
+          </div>
+
           <!-- Success State -->
           <div id="qr-success" class="hidden" style="text-align: center; padding: 24px;">
             <i class="uil uil-check-circle" style="font-size: 72px; color: #10B981;"></i>

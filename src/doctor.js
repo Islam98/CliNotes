@@ -33,8 +33,37 @@ document.addEventListener('DOMContentLoaded', async () => {
       historyContainer.innerHTML = '';
       draftsContainer.innerHTML = '';
 
-      if (!consultations || consultations.length === 0) {
+      const bookings = await api.data.getBookings();
+
+      if (!bookings || bookings.length === 0) {
         scheduleContainer.innerHTML = '<p style="padding:16px;">No consultations scheduled.</p>';
+      } else {
+        bookings.forEach(booking => {
+          const date = new Date(booking.appointment_time);
+          const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const ptName = booking.patient?.name || 'Unknown Patient';
+
+          if (booking.status === 'scheduled') {
+            scheduleContainer.innerHTML += `
+              <div class="list-row schedule-row">
+                <div class="row-info">
+                  <span class="time">${timeStr}</span>
+                  <div class="patient-details">
+                    <div class="name">${ptName}</div>
+                    <span class="type">Consultation</span>
+                  </div>
+                </div>
+                <div class="row-actions">
+                  <span class="badge status-ready">Scheduled</span>
+                  <button class="action-btn start-from-schedule-btn" data-id="${booking.patient_id}">Start</button>
+                </div>
+              </div>
+            `;
+          }
+        });
+      }
+
+      if (!consultations || consultations.length === 0) {
         historyContainer.innerHTML = '<p style="padding:16px;">No history.</p>';
         draftsContainer.innerHTML = '<p style="padding:16px;">No drafts pending.</p>';
         return;
@@ -42,28 +71,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       consultations.forEach(cons => {
         const date = new Date(cons.date_time);
-        const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
         const ptName = cons.patient?.name || 'Unknown Patient';
 
-        if (cons.status === 'pending') {
-          // Schedule
-          scheduleContainer.innerHTML += `
-            <div class="list-row schedule-row">
-              <div class="row-info">
-                <span class="time">${timeStr}</span>
-                <div class="patient-details">
-                  <div class="name">${ptName}</div>
-                  <span class="type">Consultation</span>
-                </div>
-              </div>
-              <div class="row-actions">
-                <span class="badge status-ready">Scheduled</span>
-                <button class="action-btn start-from-schedule-btn" data-id="${cons.patient_id}">Start</button>
-              </div>
-            </div>
-          `;
-        } else if (cons.status === 'processed') {
+        if (cons.status === 'processed') {
           // Drafts
           draftsContainer.innerHTML += `
             <div class="list-row draft-row">
@@ -76,7 +87,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               </div>
               <div class="row-actions">
                 <span class="badge status-ready">Ready for Review</span>
-                <button class="primary-btn">Review</button>
+                <button class="primary-btn review-btn" onclick="window.location.href='/patient-profile.html?id=${cons.patient_id}'">Review</button>
               </div>
             </div>
           `;
@@ -167,6 +178,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   function openModal() {
     patientModal.classList.remove('hidden');
     document.getElementById('qr-reader').style.display = 'block';
+    const manualEntry = document.getElementById('manual-patient-entry');
+    if (manualEntry) manualEntry.style.display = 'block';
+    
     document.getElementById('qr-success').classList.add('hidden');
     document.getElementById('modalFooter').classList.add('hidden');
     document.getElementById('patientModalContent').style.backgroundColor = 'white';
@@ -184,40 +198,58 @@ document.addEventListener('DOMContentLoaded', async () => {
       html5QrCodeScanner.render(
         (decodedText) => {
           if (!decodedText || decodedText.trim().length < 4) return; // Prevent false positives
-          
-          scannedPatientId = decodedText;
-          html5QrCodeScanner.clear(); // Stops camera and clears UI
-          
-          document.getElementById('qr-reader').style.display = 'none';
-          document.getElementById('qr-success').classList.remove('hidden');
-          document.getElementById('modalFooter').classList.remove('hidden');
-          document.getElementById('patientModalContent').style.backgroundColor = '#ECFDF5';
-          
-          let queryId = decodedText;
-          if (queryId === 'PT-9999') {
-             queryId = '99999999-9999-9999-9999-999999999999';
-          }
-
-          document.getElementById('scannedPatientName').innerText = "Loading...";
-          supabase.from('patient_profile')
-            .select('name')
-            .eq('id', queryId)
-            .single()
-            .then(({data, error}) => {
-              if (data && data.name) {
-                document.getElementById('scannedPatientName').innerText = data.name;
-              } else {
-                document.getElementById('scannedPatientName').innerText = "Unknown Patient";
-              }
-            }).catch(() => {
-              document.getElementById('scannedPatientName').innerText = "Unknown Patient";
-            });
+          handleSuccessfulPatientSelection(decodedText);
         },
         (errorMessage) => {
           // parse errors ignore
         }
       );
     }
+  }
+
+  function handleSuccessfulPatientSelection(patientIdStr) {
+    scannedPatientId = patientIdStr;
+    if (html5QrCodeScanner) {
+      try { html5QrCodeScanner.clear(); } catch(e) {}
+    }
+    
+    document.getElementById('qr-reader').style.display = 'none';
+    document.getElementById('manual-patient-entry').style.display = 'none';
+    document.getElementById('qr-success').classList.remove('hidden');
+    document.getElementById('modalFooter').classList.remove('hidden');
+    document.getElementById('patientModalContent').style.backgroundColor = '#ECFDF5';
+    
+    let queryId = patientIdStr;
+    if (queryId === 'PT-9999') {
+       queryId = '99999999-9999-9999-9999-999999999999';
+    }
+
+    document.getElementById('scannedPatientName').innerText = "Loading...";
+    supabase.from('patient_profile')
+      .select('name')
+      .eq('id', queryId)
+      .single()
+      .then(({data, error}) => {
+        if (data && data.name) {
+          document.getElementById('scannedPatientName').innerText = data.name;
+        } else {
+          document.getElementById('scannedPatientName').innerText = "Unknown Patient";
+        }
+      }).catch(() => {
+        document.getElementById('scannedPatientName').innerText = "Unknown Patient";
+      });
+  }
+
+  // Wire up manual patient ID input
+  const manualSubmitBtn = document.getElementById('manualPatientSubmitBtn');
+  const manualInput = document.getElementById('manualPatientIdInput');
+  if (manualSubmitBtn && manualInput) {
+    manualSubmitBtn.addEventListener('click', () => {
+      const val = manualInput.value.trim();
+      if (val.length >= 4) {
+        handleSuccessfulPatientSelection(val);
+      }
+    });
   }
 
   function closeModal() {
@@ -308,6 +340,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             overlayStopBtn.disabled = true;
             
             await api.data.uploadAudio(currentConsultationId, audioBlob);
+
+            // Trigger Soniox transcription in the background
+            try {
+              console.log('[CliNotes] Triggering Soniox transcription...');
+              const transcribeResult = await api.data.triggerTranscription(currentConsultationId);
+              console.log('[CliNotes] Transcription started:', transcribeResult);
+
+              // Show transcription toast
+              if (toast) {
+                toast.querySelector('span').textContent = '🎙️ Transcription in progress...';
+                toast.classList.add('show');
+                clearTimeout(toastTimeout);
+                toastTimeout = setTimeout(() => toast.classList.remove('show'), 6000);
+              }
+            } catch (transcribeErr) {
+              console.warn('[CliNotes] Transcription trigger failed (non-blocking):', transcribeErr.message);
+              // Non-blocking — the recording was saved successfully even if transcription fails
+            }
           } catch (e) {
             console.error("Failed to upload audio:", e);
             alert("Storage upload failed. Please ensure Supabase Storage RLS policies allow authenticated inserts.");
@@ -322,7 +372,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       };
 
-      mediaRecorder.start();
+      mediaRecorder.start(1000);
     } catch (err) {
       console.error("Microphone access denied or not available:", err);
       alert("Microphone access is required to record a consultation.");

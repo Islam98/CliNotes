@@ -140,6 +140,22 @@ export const api = {
       if (error) throw error;
       return data;
     },
+
+    /**
+     * Get all bookings for the current doctor.
+     */
+    async getBookings() {
+      const { data, error } = await supabase
+        .from('booking')
+        .select(`
+          *,
+          patient:patient_id(id, name)
+        `)
+        .order('appointment_time', { ascending: true });
+        
+      if (error) throw error;
+      return data;
+    },
     
     /**
      * Create a new consultation
@@ -260,6 +276,59 @@ export const api = {
         .from('doctor')
         .select('name, specialty')
         .eq('id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') throw error;
+      return data;
+    },
+
+    /**
+     * Trigger Soniox transcription for a consultation's audio.
+     * Calls the Express server endpoint which handles the Soniox API.
+     */
+    async triggerTranscription(consultationId) {
+      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const response = await fetch(`${serverUrl}/api/transcribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ consultationId }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Transcription request failed.');
+      }
+
+      return response.json();
+    },
+
+    /**
+     * Get the transcript for a consultation (polls the Express server).
+     */
+    async getTranscriptStatus(consultationId) {
+      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const response = await fetch(`${serverUrl}/api/transcribe/${consultationId}`);
+
+      if (!response.ok) {
+        if (response.status === 404) return null;
+        const err = await response.json();
+        throw new Error(err.error || 'Failed to get transcript.');
+      }
+
+      return response.json();
+    },
+
+    /**
+     * Get transcript directly from Supabase (for patient profile view)
+     */
+    async getConsultationTranscript(consultationId) {
+      const { data, error } = await supabase
+        .from('transcript')
+        .select('*')
+        .eq('consultation_id', consultationId)
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(1)
         .single();
 
       if (error && error.code !== 'PGRST116') throw error;
