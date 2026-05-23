@@ -243,6 +243,69 @@ function renderTranscriptMarkdown(tokens, transcriptionMeta = {}) {
 // API ROUTES
 // ==========================================
 
+// ─── New: Raw Audio Upload Endpoint (Bypass RLS) ───
+app.post('/api/upload-audio/:consultationId', express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '50mb' }), async (req, res) => {
+  if (!supabaseAdmin) {
+    return res.status(500).json({ error: 'Supabase admin client is not configured.' });
+  }
+
+  const { consultationId } = req.params;
+  const audioBuffer = req.body;
+
+  if (!audioBuffer || !Buffer.isBuffer(audioBuffer)) {
+    return res.status(400).json({ error: 'No audio data received.' });
+  }
+
+  const fileName = `${consultationId}/${Date.now()}.webm`;
+
+  try {
+    // 1. Upload to storage using service_role to bypass RLS
+    let { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+      .from('consultation-audio')
+      .upload(fileName, audioBuffer, {
+        contentType: 'audio/webm',
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (uploadError) {
+      // If bucket doesn't exist, try to create it and retry once
+      if (uploadError.message.includes('Bucket not found') || uploadError.message.includes('bucket')) {
+        await supabaseAdmin.storage.createBucket('consultation-audio', { public: false });
+        const { data: retryData, error: retryError } = await supabaseAdmin.storage
+          .from('consultation-audio')
+          .upload(fileName, audioBuffer, {
+            contentType: 'audio/webm',
+            cacheControl: '3600',
+            upsert: false
+          });
+        
+        if (retryError) throw retryError;
+        uploadData = retryData;
+      } else {
+        throw uploadError;
+      }
+    }
+
+    // 2. Insert metadata into audio table using service_role
+    const { data: metadataData, error: metadataError } = await supabaseAdmin
+      .from('audio')
+      .insert([{
+        consultation_id: consultationId,
+        file_path: uploadData.path || fileName
+      }])
+      .select()
+      .single();
+
+    if (metadataError) throw metadataError;
+
+    res.json(metadataData);
+  } catch (error) {
+    console.error('Upload Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ==========================================
 // Gemini Analysis Helper
 // ==========================================
@@ -259,7 +322,7 @@ async function analyzeTranscriptWithGemini(transcriptText) {
   }
 
   const systemPrompt = `
-You are a highly skilled medical AI assistant. Your task is to analyze clinical consultation transcripts and extract key medical information in a structured SOAP (Subjective, Objective, Assessment, Plan) format.
+You are a highly skilled medical AI assistant. Your task is to analyze clinical consultation transcripts conducted in code-switched Arabic-English and extract key medical information in a structured SOAP (Subjective, Objective, Assessment, Plan) format.
 Please analyze the provided text and output a JSON object with the following structure:
 {
   "summary_text": "A brief 2-3 sentence summary of the overall consultation.",
@@ -446,7 +509,7 @@ app.post('/api/transcribe', async (req, res) => {
           console.log(`[Transcribe] Starting Gemini analysis for consultation ${consultationId}...`);
           try {
             const aiResult = await analyzeTranscriptWithGemini(plainText);
-            
+
             // Insert into ai_summary table
             const { error: aiError } = await supabaseAdmin
               .from('ai_summary')
@@ -455,7 +518,7 @@ app.post('/api/transcribe', async (req, res) => {
                 summary_text: aiResult.summary_text || "Analysis completed.",
                 structured_data: aiResult.structured_data || {}
               }]);
-              
+
             if (aiError) {
               console.error('[Transcribe] Error saving AI summary to database:', aiError);
             } else {

@@ -192,31 +192,29 @@ export const api = {
     },
 
     /**
-     * Upload an audio file to Supabase Storage
+     * Upload an audio file to Supabase Storage (Proxied to bypass RLS)
      */
     async uploadAudio(consultationId, audioBlobOrFile) {
-      const fileName = `${consultationId}/${Date.now()}.webm`;
+      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
       
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('consultation-audio')
-        .upload(fileName, audioBlobOrFile, {
-          cacheControl: '3600',
-          upsert: false
-        });
-
-      if (uploadError) throw uploadError;
-
-      const { data: metadataData, error: metadataError } = await supabase
-        .from('audio')
-        .insert([{
-          consultation_id: consultationId,
-          file_path: uploadData.path
-        }])
-        .select()
-        .single();
-
-      if (metadataError) throw metadataError;
-      return metadataData;
+      const response = await fetch(`${serverUrl}/api/upload-audio/${consultationId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': audioBlobOrFile.type || 'audio/webm'
+        },
+        body: audioBlobOrFile
+      });
+      
+      if (!response.ok) {
+        let errorMsg = 'Upload failed';
+        try {
+          const errData = await response.json();
+          errorMsg = errData.error || errorMsg;
+        } catch(e) {}
+        throw new Error(errorMsg);
+      }
+      
+      return await response.json();
     },
 
     /**
@@ -333,6 +331,90 @@ export const api = {
 
       if (error && error.code !== 'PGRST116') throw error;
       return data;
+    },
+
+    /**
+     * Update consultation status
+     */
+    async updateConsultationStatus(consultationId, status) {
+      const { data, error } = await supabase
+        .from('consultation')
+        .update({ status })
+        .eq('id', consultationId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+
+    /**
+     * Update booking status
+     */
+    async updateBookingStatus(patientId, status) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+
+      const { data, error } = await supabase
+        .from('booking')
+        .update({ status })
+        .eq('patient_id', patientId)
+        .eq('doctor_id', user.id)
+        .eq('status', 'scheduled')
+        .select();
+      
+      if (error) throw error;
+      return data;
+    },
+
+    /**
+     * Create a new booking (for testing)
+     */
+    async createBooking(patientId) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+
+      const { data, error } = await supabase
+        .from('booking')
+        .insert([{
+          doctor_id: user.id,
+          patient_id: patientId,
+          appointment_time: new Date().toISOString(),
+          status: 'scheduled'
+        }])
+        .select()
+        .single();
+        
+      if (error) throw error;
+      return data;
+    },
+
+    /**
+     * Update AI Summary structured_data
+     */
+    async updateAISummary(consultationId, structuredData) {
+      const { data, error } = await supabase
+        .from('ai_summary')
+        .update({ structured_data: structuredData })
+        .eq('consultation_id', consultationId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+
+    /**
+     * Delete consultation completely
+     */
+    async deleteConsultation(consultationId) {
+      const { error } = await supabase
+        .from('consultation')
+        .delete()
+        .eq('id', consultationId);
+      
+      if (error) throw error;
+      return true;
     }
   }
 };

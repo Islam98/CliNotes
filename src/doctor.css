@@ -268,6 +268,7 @@
 .list-row:hover { background-color: #F9FAFB; }
 
 .schedule-row { height: 56px; padding: 0 12px; border: 1px solid #F3F4F6; }
+.schedule-row.selected { background-color: #F0F9FF; border-color: #BAE6FD; box-shadow: 0 0 0 1px #BAE6FD; }
 
 .row-info { display: flex; align-items: center; gap: 16px; }
 
@@ -302,6 +303,24 @@
 
 .action-btn.secondary { background-color: transparent; border: 1px solid #E5E7EB; }
 .action-btn.secondary:hover { background-color: #F9FAFB; }
+
+.cancel-btn {
+  background-color: #FEE2E2;
+  color: #DC2626;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.cancel-btn:hover {
+  background-color: #FECACA;
+  transform: scale(1.05);
+}
 
 .primary-btn { background-color: var(--primary-color); color: #fff; }
 .primary-btn:hover { background-color: #255CC4; box-shadow: 0 4px 12px rgba(47, 111, 237, 0.2); }
@@ -512,6 +531,11 @@
 .note-btn:hover { background: #C7D2FE; transform: scale(1.05); }
 .stop-btn { background: #FEE2E2; color: #991B1B; padding: 10px 20px;}
 .stop-btn:hover { background: #FECACA; transform: scale(1.05); }
+
+@keyframes slide {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(100%); }
+}
 
 @media (max-width: 1024px) {
   .col-8, .col-4 { grid-column: span 12; }

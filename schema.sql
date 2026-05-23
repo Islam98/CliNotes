@@ -48,7 +48,7 @@ CREATE TABLE consultation (
   patient_id UUID REFERENCES patient_profile(id) ON DELETE CASCADE,
   date_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   duration INTEGER,
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processed', 'reviewed')),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'processed', 'reviewed')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

@@ -51,7 +51,10 @@
       <div class="dashboard-grid">
         
         <!-- ROW 0: Quick Actions -->
-        <div class="col-12 quick-actions-row">
+        <div class="col-12 quick-actions-row" style="gap: 12px;">
+          <button class="outline-btn" id="testScheduleBtn">
+            <i class="uil uil-plus-circle"></i> Test Schedule
+          </button>
           <button class="primary-btn prominent-start-btn" id="startConsultationBtn">
             <i class="uil uil-record-audio"></i> Start New Consultation
           </button>
@@ -69,13 +72,15 @@
           </div>
         </div>
 
-        <!-- Alerts -->
-        <div class="card alerts-card col-4">
+        <!-- Patient Preview -->
+        <div class="card summary-card col-4">
           <div class="card-header">
-            <h3>Alerts</h3>
+            <h3>Patient Preview</h3>
           </div>
-          <div class="card-body list-body">
-            <!-- Alerts data will be loaded via JS -->
+          <div class="card-body" id="patientPreviewContainer">
+            <div class="empty-state-grey" style="color: #9CA3AF; text-align: center; padding: 32px 16px; font-style: italic;">
+              Select a patient to view
+            </div>
           </div>
         </div>
 
@@ -101,13 +106,13 @@
           </div>
         </div>
 
-        <!-- AI Summary Preview -->
-        <div class="card summary-card col-4">
+        <!-- Alerts -->
+        <div class="card alerts-card col-4">
           <div class="card-header">
-            <h3>AI Summary Preview</h3>
+            <h3>Alerts</h3>
           </div>
-          <div class="card-body">
-             <!-- AI Summary will be loaded via JS -->
+          <div class="card-body list-body">
+             <!-- Alerts data will be loaded via JS -->
           </div>
         </div>
 
@@ -133,6 +138,23 @@
     <div class="toast" id="captureToast">
       <span>Moment captured</span>
       <button class="undo-btn">Undo</button>
+    </div>
+
+    <!-- AI SUMMARY REVIEW MODAL -->
+    <div id="aiReviewModal" class="modal-overlay hidden">
+      <div class="modal-content" style="max-width: 900px; width: 95%;">
+        <div class="modal-header">
+          <h3>Review AI Draft Notes</h3>
+          <button class="close-btn" id="closeReviewModalBtn"><i class="uil uil-times"></i></button>
+        </div>
+        <div class="modal-body" style="padding: 24px; max-height: 70vh; overflow-y: auto; background-color: #F8FAFC;" id="aiReviewForm">
+          <!-- Dynamically populated SOAP fields -->
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: space-between; border-top: 1px solid #E2E8F0; padding: 16px 24px; background: white; border-radius: 0 0 16px 16px;">
+          <button class="text-btn" id="editReviewModalBtn"><i class="uil uil-edit"></i> Edit Notes</button>
+          <button class="primary-btn" id="approveReviewModalBtn" style="background-color: #10B981;"><i class="uil uil-check"></i> Approve & Post</button>
+        </div>
+      </div>
     </div>
 
     <!-- PATIENT SELECTION MODAL -->

@@ -189,7 +189,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // If we have summary but no structured SOAP, show a basic summary view
     if (!structured) {
       return `
-        <div class="export-bar">
+        <div class="export-bar" style="display: flex; gap: 8px;">
+          <button class="export-btn view-transcript-btn" data-id="${cons.id}" data-doc="${escapeHtml(doctorName)}"><i class="uil uil-file-alt"></i> View Transcript</button>
           <button class="export-btn" onclick="window.print()"><i class="uil uil-print"></i> Export Record</button>
         </div>
         <div class="summary-only-view">
@@ -222,11 +223,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const s = structured;
 
     return `
-      <div class="export-bar">
+      <div class="export-bar" style="display: flex; justify-content: space-between; width: 100%;">
         <span class="consultation-meta">
           <i class="uil uil-user-md"></i> Dr. ${escapeHtml(doctorName)}${doctorSpecialty ? ` • ${escapeHtml(doctorSpecialty)}` : ''}
         </span>
-        <button class="export-btn" onclick="window.print()"><i class="uil uil-print"></i> Export Record</button>
+        <div style="display: flex; gap: 8px;">
+          <button class="export-btn view-transcript-btn" data-id="${cons.id}" data-doc="${escapeHtml(doctorName)}"><i class="uil uil-file-alt"></i> View Transcript</button>
+          <button class="export-btn" onclick="window.print()"><i class="uil uil-print"></i> Export Record</button>
+        </div>
       </div>
 
       <div class="soap-grid">
@@ -413,4 +417,58 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
   }
+
+  // --- TRANSCRIPT MODAL LOGIC ---
+  const transcriptModal = document.getElementById('transcriptModal');
+  const closeTranscriptModalBtn = document.getElementById('closeTranscriptModalBtn');
+  const doneTranscriptModalBtn = document.getElementById('doneTranscriptModalBtn');
+  const transcriptContent = document.getElementById('transcriptContent');
+
+  if (transcriptModal) {
+    const hideModal = () => transcriptModal.classList.add('hidden');
+    closeTranscriptModalBtn.addEventListener('click', hideModal);
+    doneTranscriptModalBtn.addEventListener('click', hideModal);
+    transcriptModal.addEventListener('click', (e) => {
+      if (e.target === transcriptModal) hideModal();
+    });
+
+    // Delegate click events for transcript buttons
+    const consultationList = document.getElementById('consultationList');
+    if (consultationList) {
+      consultationList.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.view-transcript-btn');
+        if (!btn) return;
+        
+        const consId = btn.getAttribute('data-id');
+        const docName = btn.getAttribute('data-doc') || 'Doctor';
+        const ptName = document.querySelector('.profile-name')?.innerText || 'Patient';
+        
+        transcriptContent.innerHTML = '<em>Loading transcript...</em>';
+        transcriptModal.classList.remove('hidden');
+        
+        try {
+          const tData = await api.data.getConsultationTranscript(consId);
+          if (tData && tData.transcript_markdown) {
+            let md = tData.transcript_markdown;
+            
+            // Extract first names for better reading
+            const dFirstName = docName.replace('Dr. ', '').split(' ')[0];
+            const pFirstName = ptName.split(' ')[0];
+            
+            // Replace generic speaker tags
+            md = md.replace(/Speaker 1/g, `<strong style="color:#0f172a;">Dr. ${dFirstName}</strong>`);
+            md = md.replace(/Speaker 2/g, `<strong style="color:#0f172a;">${pFirstName}</strong>`);
+            
+            transcriptContent.innerHTML = md;
+          } else {
+            transcriptContent.innerHTML = '<em>No final transcript available for this consultation yet.</em>';
+          }
+        } catch (err) {
+          console.error("Failed to load transcript:", err);
+          transcriptContent.innerHTML = '<em>Error loading transcript.</em>';
+        }
+      });
+    }
+  }
+
 });
