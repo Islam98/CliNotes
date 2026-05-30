@@ -18,7 +18,7 @@
     </div>
     <div class="top-bar-center">
       <a href="#" class="nav-link active">Dashboard</a>
-      <a href="#" class="nav-link">My Records</a>
+      <a href="/patient-records.html" class="nav-link" id="recordsNavLink">My Records</a>
     </div>
     <div class="top-bar-right">
       <div class="settings-btn"><i class="uil uil-setting"></i></div>
@@ -33,12 +33,16 @@
         <p class="subtext">Here’s a summary of your recent health activity</p>
       </div>
       <div class="welcome-right">
+        <button class="book-btn" id="bookConsultationBtn">
+          <i class="uil uil-calendar-plus"></i>
+          Book Consultation
+        </button>
         <div class="stat-card">
-          <span class="stat-value">4</span>
-          <span class="stat-label">Total Consultations</span>
+          <span class="stat-value" id="upcomingVisit">—</span>
+          <span class="stat-label">Upcoming Consultation</span>
         </div>
         <div class="stat-card">
-          <span class="stat-value">Oct 12</span>
+          <span class="stat-value" id="lastVisit">—</span>
           <span class="stat-label">Last Visit</span>
         </div>
       </div>
@@ -47,54 +51,35 @@
     <div class="main-grid">
       <!-- Row 1 -->
       <section class="col-8">
-        <div class="card recent-consultations">
+        <div class="card consultation-overview">
           <div class="card-header">
-            <h2>Recent Consultations</h2>
-          </div>
-          <div class="card-body">
-            <!-- Consultations loaded via JS -->
-          </div>
-        </div>
-      </section>
-
-      <section class="col-4">
-        <div class="card health-snapshot">
-          <div class="card-header">
-            <h2>Health Snapshot</h2>
-          </div>
-          <div class="card-body">
-             <!-- Snapshot loaded via JS -->
-          </div>
-        </div>
-      </section>
-
-      <!-- Row 2 -->
-      <section class="col-8">
-        <div class="card consultation-details">
-          <div class="card-header">
-            <h2>Consultation Details</h2>
+            <h2>Last Consultation</h2>
             <div class="header-actions">
-              <button class="audio-btn"><i class="uil uil-play"></i> Play Audio Summary</button>
+              <button class="audio-btn" id="viewTranscriptBtn"><i class="uil uil-file-alt"></i> View Transcript</button>
             </div>
           </div>
-          <div class="card-body dynamic-content" id="details-content">
-            <!-- Populated by JS -->
+          <div class="card-body">
+            <div id="lastConsultationCard">
+              <!-- Last consultation loaded via JS -->
+            </div>
+            <div class="dynamic-content consultation-overview-details" id="details-content">
+              <!-- Populated by JS -->
+            </div>
           </div>
         </div>
       </section>
 
       <section class="col-4">
-        <div class="card doctor-recommendations">
+        <div class="card actions-required">
           <div class="card-header recommendations-header">
-            <h2><i class="uil uil-file-medical"></i> Doctor's Instructions</h2>
+            <h2><i class="uil uil-clipboard-notes"></i> Actions Required</h2>
           </div>
-          <div class="card-body">
-             <!-- Recommendations loaded via JS -->
+          <div class="card-body" id="actionsRequiredList">
+             <!-- Actions loaded via JS -->
           </div>
         </div>
       </section>
 
-      <!-- Row 3 -->
       <section class="col-12">
         <div class="card documents-files">
           <div class="card-header border-bottom">
@@ -116,6 +101,41 @@
 
     </div>
   </main>
+
+  <div class="modal-overlay hidden" id="bookingModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Book Consultation</h3>
+        <button class="close-btn" id="closeBookingModalBtn"><i class="uil uil-times"></i></button>
+      </div>
+      <form class="booking-form" id="bookingForm">
+        <div class="modal-body">
+          <label class="form-label" for="doctorSelect">Doctor</label>
+          <select id="doctorSelect" class="form-control" required></select>
+
+          <label class="form-label" for="appointmentTime">Preferred time</label>
+          <input id="appointmentTime" class="form-control" type="datetime-local" required>
+
+          <label class="form-label" for="visitReason">Why are you coming in?</label>
+          <textarea id="visitReason" class="form-control" rows="4" placeholder="Briefly describe your symptoms or concern."></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="action-btn" id="cancelBookingModalBtn">Cancel</button>
+          <button type="submit" class="action-btn primary">Book Consultation</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay hidden" id="transcriptModal">
+    <div class="modal-content wide-modal">
+      <div class="modal-header">
+        <h3>Consultation Transcript</h3>
+        <button class="close-btn" id="closeTranscriptModalBtn"><i class="uil uil-times"></i></button>
+      </div>
+      <div class="modal-body transcript-body" id="transcriptContent"></div>
+    </div>
+  </div>
   
   <script type="module" src="/src/patient.js"></script>
 </body>

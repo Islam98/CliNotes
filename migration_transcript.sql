@@ -16,6 +16,10 @@ CREATE TABLE IF NOT EXISTS transcript (
 -- Enable RLS
 ALTER TABLE transcript ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Patients can view own transcripts" ON transcript;
+DROP POLICY IF EXISTS "Doctors can manage own transcripts" ON transcript;
+DROP POLICY IF EXISTS "Doctors can view all transcripts" ON transcript;
+
 -- Patients can view transcripts for their own consultations
 CREATE POLICY "Patients can view own transcripts" ON transcript
   FOR SELECT USING (

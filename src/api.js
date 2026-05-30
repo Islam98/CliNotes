@@ -125,6 +125,15 @@ export const api = {
     },
 
     /**
+     * Get the current patient's own profile.
+     */
+    async getCurrentPatientProfile() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      return this.getPatientProfile(user.id);
+    },
+
+    /**
      * Get all consultations for the current user.
      */
     async getConsultations() {
@@ -153,6 +162,65 @@ export const api = {
         `)
         .order('appointment_time', { ascending: true });
         
+      if (error) throw error;
+      return data;
+    },
+
+    /**
+     * Get bookings for the current patient.
+     */
+    async getPatientBookings() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const { data, error } = await supabase
+        .from('booking')
+        .select(`
+          *,
+          doctor:doctor_id(id, name, specialty)
+        `)
+        .eq('patient_id', user.id)
+        .order('appointment_time', { ascending: true });
+
+      if (error) throw error;
+      return data;
+    },
+
+    /**
+     * List doctors available for patient booking.
+     */
+    async getAvailableDoctors() {
+      const { data, error } = await supabase
+        .from('doctor')
+        .select('id, name, specialty')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      return data;
+    },
+
+    /**
+     * Create a booking as the current patient.
+     */
+    async createPatientBooking(doctorId, appointmentTime, reasonText = '') {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const { data, error } = await supabase
+        .from('booking')
+        .insert([{
+          doctor_id: doctorId,
+          patient_id: user.id,
+          appointment_time: appointmentTime,
+          reason_text: reasonText,
+          status: 'scheduled'
+        }])
+        .select(`
+          *,
+          doctor:doctor_id(id, name, specialty)
+        `)
+        .single();
+
       if (error) throw error;
       return data;
     },
@@ -261,6 +329,15 @@ export const api = {
 
       if (error) throw error;
       return data;
+    },
+
+    /**
+     * Get consultations for the current patient.
+     */
+    async getMyConsultations() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      return this.getPatientConsultations(user.id);
     },
 
     /**

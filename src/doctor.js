@@ -20,6 +20,152 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
+  function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
+  }
+
+  function getInitials(name) {
+    return (name || 'PT').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  }
+
+  function isToday(value) {
+    const date = new Date(value);
+    const today = new Date();
+    return date.getFullYear() === today.getFullYear()
+      && date.getMonth() === today.getMonth()
+      && date.getDate() === today.getDate();
+  }
+
+  function setMetric(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.innerText = String(value);
+  }
+
+  function normalizePlanItems(plan) {
+    if (!plan) return [];
+
+    if (Array.isArray(plan)) {
+      return plan
+        .map(item => ({
+          label: item.label || item.type || 'Plan',
+          value: item.value || item.description || item
+        }))
+        .filter(item => item.value);
+    }
+
+    return Object.entries(plan).flatMap(([key, value]) => {
+      const values = Array.isArray(value) ? value : [value];
+      return values.filter(Boolean).map(item => ({
+        label: key,
+        value: item
+      }));
+    });
+  }
+
+  function getRecommendedActionMeta(label, value, fallbackIcon = 'uil-clipboard-notes') {
+    const normalized = String(label || '').toLowerCase();
+    const detail = String(value || '').toLowerCase();
+    const combined = `${normalized} ${detail}`;
+
+    if (combined.includes('follow')) {
+      return { icon: 'uil-calendar-alt', tone: 'follow-up', title: 'Schedule follow-up' };
+    }
+    if (combined.includes('x-ray') || combined.includes('xray') || combined.includes('mri') || combined.includes('ct') || combined.includes('ultrasound') || combined.includes('scan') || combined.includes('imaging')) {
+      return { icon: 'uil-image-search', tone: 'imaging', title: 'Prepare imaging request' };
+    }
+    if (combined.includes('test') || combined.includes('lab') || combined.includes('cbc') || combined.includes('hba1c') || combined.includes('a1c') || combined.includes('lipid') || combined.includes('tsh')) {
+      return { icon: 'uil-flask', tone: 'lab', title: 'Prepare lab order' };
+    }
+    if (combined.includes('medication') || combined.includes('prescription') || combined.includes('treatment') || combined.includes('start ') || combined.includes('continue ') || combined.includes('mg')) {
+      return { icon: 'uil-capsule', tone: 'medication', title: 'Review prescription draft' };
+    }
+    if (combined.includes('refer')) {
+      return { icon: 'uil-share-alt', tone: 'referral', title: 'Prepare referral' };
+    }
+    return { icon: fallbackIcon, tone: 'general', title: 'Review recommended action' };
+  }
+
+  function buildRecommendedActionRow({ icon, tone, title, detail, actionHtml = '' }) {
+    return `
+      <div class="recommended-action-row ${tone ? `action-${tone}` : ''}">
+        <div class="recommended-action-icon"><i class="uil ${icon}"></i></div>
+        <div class="recommended-action-content">
+          <strong>${escapeHtml(title)}</strong>
+          <span>${escapeHtml(detail)}</span>
+        </div>
+        ${actionHtml ? `<div class="recommended-action-control">${actionHtml}</div>` : ''}
+      </div>
+    `;
+  }
+
+  async function renderPatientPreview(patientId, visitReason = '') {
+    const preview = document.getElementById('patientPreviewContainer');
+    if (!preview) return;
+
+    preview.innerHTML = '<div class="search-loading"><i class="uil uil-spinner-alt uil-spin"></i> Loading context...</div>';
+
+    try {
+      const [patient, consultations] = await Promise.all([
+        api.data.getPatientProfile(patientId),
+        api.data.getPatientConsultations(patientId)
+      ]);
+
+      const latest = consultations?.[0] || null;
+      const structured = latest?.ai_summary?.[0]?.structured_data || {};
+      const diagnoses = structured?.assessment?.diagnoses || [];
+      const diagnosisList = Array.isArray(diagnoses) ? diagnoses : [diagnoses].filter(Boolean);
+      const plan = Array.isArray(structured?.plan)
+        ? structured.plan.map(item => item.value || item.description || item).filter(Boolean).slice(0, 2).join(' · ')
+        : Object.values(structured?.plan || {}).flat().filter(Boolean).slice(0, 2).join(' · ');
+
+      const meta = [patient.age ? `Age ${patient.age}` : '', patient.gender || ''].filter(Boolean).join(' • ') || 'Patient';
+      const lastVisit = latest
+        ? new Date(latest.date_time).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
+        : 'No previous visits';
+
+      preview.innerHTML = `
+        <div class="patient-preview">
+          <div class="preview-header">
+            <div class="preview-avatar">${escapeHtml(getInitials(patient.name))}</div>
+            <div class="preview-title">
+              <strong>${escapeHtml(patient.name || 'Unknown Patient')}</strong>
+              <span>${escapeHtml(meta)}</span>
+            </div>
+          </div>
+          <div class="preview-section">
+            <span>Visit Reason</span>
+            <p>${escapeHtml(visitReason || 'No pre-visit reason provided.')}</p>
+          </div>
+          <div class="preview-section">
+            <span>Last Visit</span>
+            <p>${escapeHtml(lastVisit)}</p>
+          </div>
+          <div class="preview-section">
+            <span>Active Diagnoses</span>
+            ${diagnosisList.length ? `
+              <div class="preview-tags">
+                ${diagnosisList.slice(0, 4).map(d => `<span class="preview-tag">${escapeHtml(d)}</span>`).join('')}
+              </div>
+            ` : '<p>No diagnoses recorded yet.</p>'}
+          </div>
+          <div class="preview-section">
+            <span>Recent Plan</span>
+            <p>${escapeHtml(plan || 'No recent plan recorded.')}</p>
+          </div>
+          <div class="preview-actions">
+            <button class="secondary-btn" onclick="window.location.href='/patient-profile.html?id=${patientId}'"><i class="uil uil-user-square"></i> View Profile</button>
+          </div>
+        </div>
+      `;
+    } catch (err) {
+      console.error('Failed to load patient context:', err);
+      preview.innerHTML = '<div class="empty-state-grey" style="color: #9CA3AF; text-align: center; padding: 32px 16px; font-style: italic;">Context unavailable</div>';
+    }
+  }
+
   // Fetch and render data
   async function loadDoctorData() {
     try {
@@ -28,65 +174,81 @@ document.addEventListener('DOMContentLoaded', async () => {
       const scheduleContainer = document.querySelector('.schedule-card .list-body');
       const historyContainer = document.querySelector('.history-card .list-body');
       const draftsContainer = document.querySelector('.drafts-card .list-body');
-      const recentContainer = document.querySelector('.recent-card .list-body');
+      const recommendedActionsContainer = document.querySelector('.recommended-actions-card .list-body');
       
       scheduleContainer.innerHTML = '';
       historyContainer.innerHTML = '';
       draftsContainer.innerHTML = '';
-      if(recentContainer) recentContainer.innerHTML = '';
+      if(recommendedActionsContainer) recommendedActionsContainer.innerHTML = '';
 
       const bookings = await api.data.getBookings();
+      const scheduledBookings = (bookings || []).filter(booking => booking.status === 'scheduled' && isToday(booking.appointment_time));
+      const consultationList = consultations || [];
 
-      if (!bookings || bookings.length === 0) {
+      setMetric('scheduledCount', scheduledBookings.length);
+      setMetric('processingCount', consultationList.filter(c => c.status === 'processing').length);
+      setMetric('readyCount', consultationList.filter(c => c.status === 'processed').length);
+      setMetric('reviewedCount', consultationList.filter(c => c.status === 'reviewed' && isToday(c.date_time)).length);
+
+      if (scheduledBookings.length === 0) {
         scheduleContainer.innerHTML = '<p style="padding:16px;">No consultations scheduled.</p>';
       } else {
-        bookings.forEach(booking => {
+        scheduledBookings.forEach(booking => {
           const date = new Date(booking.appointment_time);
           const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
           const ptName = booking.patient?.name || 'Unknown Patient';
 
-          if (booking.status === 'scheduled') {
-            scheduleContainer.innerHTML += `
-              <div class="list-row schedule-row" style="cursor: pointer;" onclick="document.querySelectorAll('.schedule-row').forEach(r => r.classList.remove('selected')); this.classList.add('selected'); document.getElementById('patientPreviewContainer').innerHTML = '<div class=\\'empty-state-grey\\' style=\\'color: #9CA3AF; text-align: center; padding: 32px 16px; font-style: italic;\\'>No preview available</div>';">
-                <div class="row-info">
-                  <span class="time">${timeStr}</span>
-                  <div class="patient-details">
-                    <div class="name">${ptName}</div>
-                    <span class="type">Consultation</span>
-                  </div>
-                </div>
-                <div class="row-actions">
-                  <button class="cancel-btn cancel-booking-btn" data-id="${booking.patient_id}" style="margin-right: 8px;" title="Cancel Booking"><i class="uil uil-times"></i></button>
-                  <span class="badge status-ready">Scheduled</span>
-                  <button class="action-btn start-from-schedule-btn" data-id="${booking.patient_id}">Start</button>
+          scheduleContainer.innerHTML += `
+            <div class="list-row schedule-row" data-patient-id="${booking.patient_id}" data-reason="${escapeHtml(booking.reason_text || '')}" style="cursor: pointer;">
+              <div class="row-info">
+                <span class="time">${escapeHtml(timeStr)}</span>
+                <div class="patient-details">
+                  <div class="name">${escapeHtml(ptName)}</div>
+                  <span class="type">Consultation</span>
                 </div>
               </div>
-            `;
-          }
+              <div class="row-actions">
+                <button class="secondary-btn view-patient-btn" data-id="${booking.patient_id}"><i class="uil uil-user-square"></i> View</button>
+                <button class="warning-btn no-show-booking-btn" data-id="${booking.patient_id}" title="Mark No-show"><i class="uil uil-user-times"></i></button>
+                <button class="cancel-btn cancel-booking-btn" data-id="${booking.patient_id}" title="Cancel Booking"><i class="uil uil-times"></i></button>
+                <span class="badge status-ready">Scheduled</span>
+                <button class="primary-btn start-from-schedule-btn" data-id="${booking.patient_id}"><i class="uil uil-record-audio"></i> Start</button>
+              </div>
+            </div>
+          `;
         });
       }
 
-      if (!consultations || consultations.length === 0) {
-        historyContainer.innerHTML = '<p style="padding:16px;">No history.</p>';
+      if (!consultationList.length) {
         draftsContainer.innerHTML = '<p style="padding:16px;">No drafts pending.</p>';
-        return;
       }
 
-      let recentCount = 0;
+      let recommendedActionCount = 0;
 
-      consultations.forEach(cons => {
+      consultationList.forEach(cons => {
         const date = new Date(cons.date_time);
         const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
         const ptName = cons.patient?.name || 'Unknown Patient';
 
         if (cons.status === 'processed') {
+          if (recommendedActionsContainer && recommendedActionCount < 6) {
+            recommendedActionsContainer.innerHTML += buildRecommendedActionRow({
+              icon: 'uil-file-check-alt',
+              tone: 'review',
+              title: 'Review draft before actions',
+              detail: `${ptName} • AI note is ready`,
+              actionHtml: `<button class="text-btn review-btn" data-id="${cons.id}">Review</button>`
+            });
+            recommendedActionCount++;
+          }
+
           // Drafts - Ready
           draftsContainer.innerHTML += `
             <div class="list-row draft-row">
               <div class="row-info">
-                <div class="avatar-sm">${ptName.substring(0, 2).toUpperCase()}</div>
+                <div class="avatar-sm">${escapeHtml(getInitials(ptName))}</div>
                 <div class="draft-details">
-                  <span class="name">${ptName}</span>
+                  <span class="name">${escapeHtml(ptName)}</span>
                   <span class="date">${dateStr} • AI Processing Complete</span>
                 </div>
               </div>
@@ -98,14 +260,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
           `;
         } else if (cons.status === 'processing') {
+          if (recommendedActionsContainer && recommendedActionCount < 6) {
+            recommendedActionsContainer.innerHTML += buildRecommendedActionRow({
+              icon: 'uil-sync',
+              tone: 'processing',
+              title: 'Waiting for recommendations',
+              detail: `${ptName} • transcription and analysis in progress`
+            });
+            recommendedActionCount++;
+          }
+
           // Drafts - Processing
           draftsContainer.innerHTML += `
             <div class="list-row draft-row">
               <div class="row-info" style="width: 100%;">
-                <div class="avatar-sm" style="background: #E5E7EB; color: #6B7280;">${ptName.substring(0, 2).toUpperCase()}</div>
+                <div class="avatar-sm" style="background: #E5E7EB; color: #6B7280;">${escapeHtml(getInitials(ptName))}</div>
                 <div class="draft-details" style="flex: 1;">
-                  <span class="name">${ptName}</span>
-                  <span class="date">${dateStr} • AI Generating Draft...</span>
+                  <span class="name">${escapeHtml(ptName)}</span>
+                  <span class="date">${dateStr} • Uploading, transcribing, or analyzing...</span>
                   <div style="height: 4px; width: 100%; background: #E2E8F0; border-radius: 2px; margin-top: 8px; overflow: hidden;">
                     <div style="height: 100%; width: 50%; background: #3B82F6; animation: slide 2s infinite alternate;"></div>
                   </div>
@@ -118,23 +290,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
           `;
         } else if (cons.status === 'reviewed') {
-          // Recent Patients (Max 3)
-          if (recentCount < 3 && recentContainer) {
-            recentContainer.innerHTML += `
-              <div class="list-row recent-row">
-                <div class="row-info">
-                  <div class="avatar-sm" style="background: #DBEAFE; color: #1D4ED8;">${ptName.substring(0, 2).toUpperCase()}</div>
-                  <div class="recent-details">
-                    <span class="name">${ptName}</span>
-                    <span class="date">${dateStr}</span>
-                  </div>
-                </div>
-                <div class="row-actions">
-                  <button class="text-btn" onclick="window.location.href='/patient-profile.html?id=${cons.patient_id}'">View Profile</button>
-                </div>
-              </div>
-            `;
-            recentCount++;
+          if (recommendedActionsContainer && recommendedActionCount < 6) {
+            const structured = cons.ai_summary?.[0]?.structured_data || {};
+            const planItems = normalizePlanItems(structured.plan).slice(0, 2);
+            planItems.forEach(item => {
+              if (recommendedActionCount >= 6) return;
+              const meta = getRecommendedActionMeta(item.label, item.value);
+              recommendedActionsContainer.innerHTML += buildRecommendedActionRow({
+                icon: meta.icon,
+                tone: meta.tone,
+                title: meta.title,
+                detail: `${ptName} • ${String(item.value)}`,
+                actionHtml: `<button class="text-btn prepare-action-btn" data-patient-id="${cons.patient_id}" data-action="${escapeHtml(meta.title)}">Prepare</button>`
+              });
+              recommendedActionCount++;
+            });
           }
           
           // History
@@ -142,7 +312,7 @@ document.addEventListener('DOMContentLoaded', async () => {
              <div class="list-row history-row">
               <div class="row-info">
                 <span class="date-tag">${dateStr}</span>
-                <span class="name">${ptName}</span>
+                <span class="name">${escapeHtml(ptName)}</span>
               </div>
               <div class="history-actions">
                 <button class="secondary-btn" onclick="window.location.href='/patient-profile.html?id=${cons.patient_id}'"><i class="uil uil-file-alt"></i> View Summary</button>
@@ -155,18 +325,35 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Update badge counts
       const draftsBadge = document.querySelector('.drafts-card .count-badge');
       if (draftsBadge) {
-        const count = consultations.filter(c => c.status === 'processing' || c.status === 'processed').length;
+        const count = consultationList.filter(c => c.status === 'processing' || c.status === 'processed').length;
         draftsBadge.innerText = `${count} Pending`;
       }
-      
-      if (recentContainer && recentCount === 0) {
-        recentContainer.innerHTML = '<p style="padding:16px; color:#6B7280; font-style:italic;">No recent patients today.</p>';
+
+      if (!draftsContainer.innerHTML.trim()) {
+        draftsContainer.innerHTML = '<p style="padding:16px;">No drafts pending.</p>';
+      }
+
+      if (!historyContainer.innerHTML.trim()) {
+        historyContainer.innerHTML = '<p style="padding:16px;">No completed consultations.</p>';
       }
       
-      // Re-attach start buttons events
+      if (recommendedActionsContainer && recommendedActionCount === 0) {
+        recommendedActionsContainer.innerHTML = '<p style="padding:16px; color:#6B7280; font-style:italic;">No recommended actions yet.</p>';
+      }
+      
+      // Schedule row selection and actions
+      document.querySelectorAll('.schedule-row').forEach(row => {
+        row.addEventListener('click', () => {
+          document.querySelectorAll('.schedule-row').forEach(r => r.classList.remove('selected'));
+          row.classList.add('selected');
+          renderPatientPreview(row.getAttribute('data-patient-id'), row.getAttribute('data-reason'));
+        });
+      });
+
       document.querySelectorAll('.start-from-schedule-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
-          const ptId = e.target.getAttribute('data-id');
+          e.stopPropagation();
+          const ptId = e.target.closest('.start-from-schedule-btn').getAttribute('data-id');
           // Update booking status to completed
           try {
             await api.data.updateBookingStatus(ptId, 'completed');
@@ -176,6 +363,22 @@ document.addEventListener('DOMContentLoaded', async () => {
           
           openModal();
           handleSuccessfulPatientSelection(ptId);
+        });
+      });
+
+      document.querySelectorAll('.view-patient-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const ptId = e.target.closest('.view-patient-btn').getAttribute('data-id');
+          window.location.href = `/patient-profile.html?id=${ptId}`;
+        });
+      });
+
+      document.querySelectorAll('.prepare-action-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const patientId = e.target.closest('.prepare-action-btn').getAttribute('data-patient-id');
+          window.location.href = `/patient-profile.html?id=${patientId}`;
         });
       });
 
@@ -217,6 +420,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             } catch (err) {
               console.error("Failed to cancel", err);
               alert("Could not cancel appointment.");
+            }
+          }
+        });
+      });
+
+      // No-show Booking Button
+      document.querySelectorAll('.no-show-booking-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const btnEl = e.target.closest('.no-show-booking-btn');
+          const ptId = btnEl.getAttribute('data-id');
+          if (confirm("Mark this scheduled appointment as no-show?")) {
+            try {
+              await api.data.updateBookingStatus(ptId, 'no_show');
+              loadDoctorData();
+            } catch (err) {
+              console.error("Failed to mark no-show", err);
+              alert("Could not mark appointment as no-show.");
             }
           }
         });

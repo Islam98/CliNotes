@@ -407,6 +407,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   }
 
+  function renderTranscriptHtml(markdown, doctorName, patientName) {
+    const dFirstName = doctorName.replace('Dr. ', '').split(' ')[0] || 'Doctor';
+    const pFirstName = patientName.split(' ')[0] || 'Patient';
+
+    let escaped = escapeHtml(markdown);
+    escaped = escaped
+      .replace(/\*\*Speaker 1\*\*/g, `<strong class="speaker-label">Dr. ${escapeHtml(dFirstName)}</strong>`)
+      .replace(/\*\*Speaker 2\*\*/g, `<strong class="speaker-label">${escapeHtml(pFirstName)}</strong>`)
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/^# (.*)$/gm, '<h4 class="transcript-heading">$1</h4>')
+      .replace(/^---$/gm, '<hr class="transcript-rule">')
+      .replace(/^&gt; (.*)$/gm, '<p class="transcript-quote">$1</p>')
+      .replace(/\n/g, '<br>');
+
+    return escaped;
+  }
+
   // ─── Logout ───
   const docAvatar = document.getElementById('docAvatarBtn');
   if (docAvatar) {
@@ -438,10 +455,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       consultationList.addEventListener('click', async (e) => {
         const btn = e.target.closest('.view-transcript-btn');
         if (!btn) return;
+        e.stopPropagation();
         
         const consId = btn.getAttribute('data-id');
         const docName = btn.getAttribute('data-doc') || 'Doctor';
-        const ptName = document.querySelector('.profile-name')?.innerText || 'Patient';
+        const ptName = document.getElementById('patientFullName')?.innerText || 'Patient';
         
         transcriptContent.innerHTML = '<em>Loading transcript...</em>';
         transcriptModal.classList.remove('hidden');
@@ -449,17 +467,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
           const tData = await api.data.getConsultationTranscript(consId);
           if (tData && tData.transcript_markdown) {
-            let md = tData.transcript_markdown;
-            
-            // Extract first names for better reading
-            const dFirstName = docName.replace('Dr. ', '').split(' ')[0];
-            const pFirstName = ptName.split(' ')[0];
-            
-            // Replace generic speaker tags
-            md = md.replace(/Speaker 1/g, `<strong style="color:#0f172a;">Dr. ${dFirstName}</strong>`);
-            md = md.replace(/Speaker 2/g, `<strong style="color:#0f172a;">${pFirstName}</strong>`);
-            
-            transcriptContent.innerHTML = md;
+            transcriptContent.innerHTML = renderTranscriptHtml(tData.transcript_markdown, docName, ptName);
+          } else if (tData && tData.transcript_text) {
+            transcriptContent.innerHTML = `<p class="transcript-quote">${escapeHtml(tData.transcript_text)}</p>`;
           } else {
             transcriptContent.innerHTML = '<em>No final transcript available for this consultation yet.</em>';
           }

@@ -106,7 +106,9 @@ CREATE TABLE booking (
   doctor_id UUID REFERENCES doctor(id) ON DELETE CASCADE,
   patient_id UUID REFERENCES patient_profile(id) ON DELETE CASCADE,
   appointment_time TIMESTAMPTZ NOT NULL,
-  status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'completed', 'cancelled')),
+  reason_text TEXT,
+  reason_audio_path TEXT,
+  status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'completed', 'cancelled', 'no_show')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -132,6 +134,15 @@ CREATE POLICY "Users can view own profile" ON profiles
 -- Doctor: Doctors can view their own record
 CREATE POLICY "Doctors can view own record" ON doctor
   FOR SELECT USING (auth.uid() = id);
+
+CREATE POLICY "Patients can view doctors for booking" ON doctor
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM profiles p
+      WHERE p.id = auth.uid()
+      AND p.role = 'patient'
+    )
+  );
 
 -- Patient Profile: Patients can view own record, Doctors can view their patients
 CREATE POLICY "Patients can view own record" ON patient_profile
@@ -201,6 +212,9 @@ CREATE POLICY "Doctors can manage highlights" ON highlight
 CREATE POLICY "Patients can view own bookings" ON booking
   FOR SELECT USING (auth.uid() = patient_id);
 
+CREATE POLICY "Patients can create own bookings" ON booking
+  FOR INSERT WITH CHECK (auth.uid() = patient_id);
+
 CREATE POLICY "Doctors can manage own bookings" ON booking
   FOR ALL USING (auth.uid() = doctor_id);
 
@@ -236,6 +250,34 @@ CREATE POLICY "Doctors can view all summaries" ON ai_summary
 
 -- Doctors can view all recommendations
 CREATE POLICY "Doctors can view all recommendations" ON doctor_recommendation
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM profiles p
+      WHERE p.id = auth.uid()
+      AND p.role = 'doctor'
+    )
+  );
+
+-- Transcript:
+CREATE POLICY "Patients can view own transcripts" ON transcript
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM consultation c
+      WHERE c.id = transcript.consultation_id
+      AND c.patient_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Doctors can manage own transcripts" ON transcript
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM consultation c
+      WHERE c.id = transcript.consultation_id
+      AND c.doctor_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Doctors can view all transcripts" ON transcript
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM profiles p
