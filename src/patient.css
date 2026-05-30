@@ -598,6 +598,10 @@ body.patient-body {
   box-shadow: 0 20px 50px rgba(0,0,0,0.16);
 }
 
+.booking-modal-content {
+  width: min(720px, 100%);
+}
+
 .wide-modal {
   width: min(820px, 100%);
 }
@@ -623,6 +627,12 @@ body.patient-body {
   font-weight: 700;
 }
 
+.modal-subtitle {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-top: 2px;
+}
+
 .close-btn {
   border: none;
   background: transparent;
@@ -635,7 +645,187 @@ body.patient-body {
   padding: 22px;
   display: flex;
   flex-direction: column;
+  gap: 16px;
+}
+
+.booking-progress {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.booking-progress-step {
+  background: #F3F4F6;
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 8px;
+  text-align: center;
+}
+
+.booking-progress-step.active {
+  background: rgba(47, 111, 237, 0.12);
+  color: var(--primary-blue);
+}
+
+.booking-progress-step.done {
+  background: rgba(46, 196, 182, 0.12);
+  color: #1A8A80;
+}
+
+.booking-step-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 14px;
+}
+
+.booking-step-copy strong {
+  color: var(--text-dark);
+  font-size: 16px;
+}
+
+.booking-step-copy span {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.selection-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.specialty-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.selection-card,
+.doctor-card,
+.slot-card {
+  border: 1px solid #E5E7EB;
+  background: #FFFFFF;
+  border-radius: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.selection-card:hover,
+.doctor-card:hover,
+.slot-card:hover,
+.selection-card.selected,
+.doctor-card.selected,
+.slot-card.selected {
+  border-color: var(--primary-blue);
+  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.1);
+  background: #FAFBFF;
+}
+
+.selection-card {
+  min-height: 110px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  text-align: left;
+}
+
+.selection-card i {
+  color: var(--primary-blue);
+  font-size: 24px;
+}
+
+.selection-card strong,
+.doctor-card strong,
+.slot-card strong {
+  color: var(--text-dark);
+  font-size: 15px;
+}
+
+.selection-card span,
+.doctor-card span,
+.slot-card span {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.selection-list {
+  display: flex;
+  flex-direction: column;
   gap: 10px;
+}
+
+.doctor-card {
+  width: 100%;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+}
+
+.doctor-avatar-small {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(47, 111, 237, 0.1);
+  color: var(--primary-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.doctor-card div:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.slot-card {
+  min-height: 74px;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+.booking-review {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.booking-review div {
+  border: 1px solid #F3F4F6;
+  border-radius: 12px;
+  padding: 12px;
+  background: #FAFBFC;
+}
+
+.booking-review span {
+  display: block;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.booking-review strong {
+  color: var(--text-dark);
+  font-size: 14px;
 }
 
 .form-label {
@@ -727,5 +917,15 @@ body.patient-body {
 
   .book-btn {
     min-height: 48px;
+  }
+
+  .specialty-grid,
+  .slot-grid,
+  .booking-review {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-progress {
+    grid-template-columns: repeat(2, 1fr);
   }
 }

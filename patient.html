@@ -103,25 +103,24 @@
   </main>
 
   <div class="modal-overlay hidden" id="bookingModal">
-    <div class="modal-content">
+    <div class="modal-content booking-modal-content">
       <div class="modal-header">
-        <h3>Book Consultation</h3>
+        <div>
+          <h3>Book Consultation</h3>
+          <p class="modal-subtitle" id="bookingStepLabel">Choose a specialty</p>
+        </div>
         <button class="close-btn" id="closeBookingModalBtn"><i class="uil uil-times"></i></button>
       </div>
       <form class="booking-form" id="bookingForm">
-        <div class="modal-body">
-          <label class="form-label" for="doctorSelect">Doctor</label>
-          <select id="doctorSelect" class="form-control" required></select>
-
-          <label class="form-label" for="appointmentTime">Preferred time</label>
-          <input id="appointmentTime" class="form-control" type="datetime-local" required>
-
-          <label class="form-label" for="visitReason">Why are you coming in?</label>
-          <textarea id="visitReason" class="form-control" rows="4" placeholder="Briefly describe your symptoms or concern."></textarea>
+        <div class="modal-body booking-step-body">
+          <div class="booking-progress" id="bookingProgress"></div>
+          <div id="bookingStepContent"></div>
         </div>
         <div class="modal-footer">
           <button type="button" class="action-btn" id="cancelBookingModalBtn">Cancel</button>
-          <button type="submit" class="action-btn primary">Book Consultation</button>
+          <button type="button" class="action-btn" id="bookingBackBtn">Back</button>
+          <button type="button" class="action-btn" id="autoAssignBtn">Next free doctor</button>
+          <button type="button" class="action-btn primary" id="bookingNextBtn">Next</button>
         </div>
       </form>
     </div>

@@ -4,7 +4,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const state = {
     consultations: [],
     selectedConsultation: null,
-    doctors: []
+    doctors: [],
+    booking: getEmptyBookingState()
   };
 
   const greeting = document.querySelector('.greeting');
@@ -20,9 +21,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const closeBookingModalBtn = document.getElementById('closeBookingModalBtn');
   const cancelBookingModalBtn = document.getElementById('cancelBookingModalBtn');
   const bookingForm = document.getElementById('bookingForm');
-  const doctorSelect = document.getElementById('doctorSelect');
-  const appointmentTime = document.getElementById('appointmentTime');
-  const visitReason = document.getElementById('visitReason');
+  const bookingStepLabel = document.getElementById('bookingStepLabel');
+  const bookingProgress = document.getElementById('bookingProgress');
+  const bookingStepContent = document.getElementById('bookingStepContent');
+  const bookingBackBtn = document.getElementById('bookingBackBtn');
+  const autoAssignBtn = document.getElementById('autoAssignBtn');
+  const bookingNextBtn = document.getElementById('bookingNextBtn');
   const viewTranscriptBtn = document.getElementById('viewTranscriptBtn');
   const transcriptModal = document.getElementById('transcriptModal');
   const closeTranscriptModalBtn = document.getElementById('closeTranscriptModalBtn');
@@ -65,7 +69,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderConsultationDetails(state.selectedConsultation);
     renderActionsRequired(state.consultations);
     renderDocuments(state.consultations);
-    renderDoctorOptions(state.doctors);
   }
 
   function renderHeader(profile) {
@@ -233,27 +236,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     `).join('');
   }
 
-  function renderDoctorOptions(doctors) {
-    if (!doctors.length) {
-      doctorSelect.innerHTML = '<option value="">No doctors available</option>';
-      return;
-    }
-
-    doctorSelect.innerHTML = doctors.map(doctor => (
-      `<option value="${doctor.id}">${escapeHtml(doctor.name)}${doctor.specialty ? ` • ${escapeHtml(doctor.specialty)}` : ''}</option>`
-    )).join('');
-  }
-
   function openBookingModal() {
+    state.booking = getEmptyBookingState();
     bookingModal.classList.remove('hidden');
-    const now = new Date(Date.now() + 60 * 60 * 1000);
-    now.setMinutes(Math.ceil(now.getMinutes() / 15) * 15, 0, 0);
-    appointmentTime.value = toDatetimeLocalValue(now);
+    renderBookingStep();
   }
 
   function closeBookingModal() {
     bookingModal.classList.add('hidden');
     bookingForm.reset();
+    state.booking = getEmptyBookingState();
   }
 
   bookBtn.addEventListener('click', openBookingModal);
@@ -263,27 +255,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (event.target === bookingModal) closeBookingModal();
   });
 
-  bookingForm.addEventListener('submit', async event => {
+  bookingForm.addEventListener('submit', event => {
     event.preventDefault();
-    const submitBtn = bookingForm.querySelector('button[type="submit"]');
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="uil uil-spinner-alt uil-spin"></i> Booking...';
+  });
 
-    try {
-      await api.data.createPatientBooking(
-        doctorSelect.value,
-        new Date(appointmentTime.value).toISOString(),
-        visitReason.value.trim()
-      );
-      closeBookingModal();
-      await loadDashboard();
-    } catch (err) {
-      console.error('Booking failed:', err);
-      alert(err.message || 'Could not book consultation.');
-    } finally {
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = 'Book Consultation';
+  bookingBackBtn.addEventListener('click', () => {
+    if (state.booking.step === 0) return;
+    state.booking.step -= 1;
+    renderBookingStep();
+  });
+
+  bookingNextBtn.addEventListener('click', async () => {
+    if (!canAdvanceBooking()) return;
+
+    if (state.booking.step < 3) {
+      state.booking.step += 1;
+      renderBookingStep();
+      return;
     }
+
+    await submitBooking();
+  });
+
+  autoAssignBtn.addEventListener('click', () => {
+    autoAssignNextFreeDoctor();
+    renderBookingStep();
   });
 
   viewTranscriptBtn.addEventListener('click', async () => {
@@ -315,6 +311,247 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     });
   });
+
+  function renderBookingStep() {
+    const steps = ['Specialty', 'Doctor', 'Time', 'Confirm'];
+    bookingStepLabel.innerText = steps[state.booking.step];
+    bookingProgress.innerHTML = steps.map((step, index) => `
+      <span class="booking-progress-step ${index === state.booking.step ? 'active' : ''} ${index < state.booking.step ? 'done' : ''}">${step}</span>
+    `).join('');
+
+    bookingBackBtn.style.display = state.booking.step === 0 ? 'none' : '';
+    autoAssignBtn.style.display = state.booking.step <= 2 ? '' : 'none';
+    bookingNextBtn.innerText = state.booking.step === 3 ? 'Book Consultation' : 'Next';
+
+    if (state.booking.step === 0) renderSpecialtyStep();
+    if (state.booking.step === 1) renderDoctorStep();
+    if (state.booking.step === 2) renderSlotStep();
+    if (state.booking.step === 3) renderConfirmStep();
+  }
+
+  function renderSpecialtyStep() {
+    const specialties = getSpecialties();
+
+    bookingStepContent.innerHTML = `
+      <div class="booking-step-copy">
+        <strong>What type of care do you need?</strong>
+        <span>Choose a specialty, or use automatic assignment for the earliest available doctor.</span>
+      </div>
+      <div class="selection-grid specialty-grid">
+        ${specialties.map(specialty => `
+          <button type="button" class="selection-card ${state.booking.specialty === specialty ? 'selected' : ''}" data-specialty="${escapeHtml(specialty)}">
+            <i class="uil ${getSpecialtyIcon(specialty)}"></i>
+            <strong>${escapeHtml(specialty)}</strong>
+            <span>${state.doctors.filter(doctor => getDoctorSpecialty(doctor) === specialty).length} doctor${state.doctors.filter(doctor => getDoctorSpecialty(doctor) === specialty).length === 1 ? '' : 's'}</span>
+          </button>
+        `).join('')}
+      </div>
+    `;
+
+    bookingStepContent.querySelectorAll('.selection-card[data-specialty]').forEach(card => {
+      card.addEventListener('click', () => {
+        state.booking.specialty = card.dataset.specialty;
+        state.booking.doctorId = '';
+        state.booking.slot = '';
+        renderBookingStep();
+      });
+    });
+  }
+
+  function renderDoctorStep() {
+    const doctors = getDoctorsForSelectedSpecialty();
+
+    bookingStepContent.innerHTML = `
+      <div class="booking-step-copy">
+        <strong>Select a doctor</strong>
+        <span>${escapeHtml(state.booking.specialty)} doctors available for booking.</span>
+      </div>
+      <div class="selection-list">
+        ${doctors.length ? doctors.map(doctor => `
+          <button type="button" class="doctor-card ${state.booking.doctorId === doctor.id ? 'selected' : ''}" data-doctor-id="${doctor.id}">
+            <div class="doctor-avatar-small">${escapeHtml(getInitials(doctor.name))}</div>
+            <div>
+              <strong>${escapeHtml(doctor.name)}</strong>
+              <span>${escapeHtml(getDoctorSpecialty(doctor))}</span>
+            </div>
+          </button>
+        `).join('') : '<p class="empty-text">No doctors found for this specialty.</p>'}
+      </div>
+    `;
+
+    bookingStepContent.querySelectorAll('.doctor-card').forEach(card => {
+      card.addEventListener('click', () => {
+        state.booking.doctorId = card.dataset.doctorId;
+        state.booking.slot = '';
+        renderBookingStep();
+      });
+    });
+  }
+
+  function renderSlotStep() {
+    const doctor = getSelectedDoctor();
+    const slots = generateSlots(doctor);
+
+    bookingStepContent.innerHTML = `
+      <div class="booking-step-copy">
+        <strong>Choose a free slot</strong>
+        <span>${doctor ? escapeHtml(`Dr. ${doctor.name}`) : 'Select a doctor first'}</span>
+      </div>
+      <div class="slot-grid">
+        ${slots.map(slot => `
+          <button type="button" class="slot-card ${state.booking.slot === slot.value ? 'selected' : ''}" data-slot="${slot.value}">
+            <strong>${escapeHtml(slot.day)}</strong>
+            <span>${escapeHtml(slot.time)}</span>
+          </button>
+        `).join('')}
+      </div>
+    `;
+
+    bookingStepContent.querySelectorAll('.slot-card').forEach(card => {
+      card.addEventListener('click', () => {
+        state.booking.slot = card.dataset.slot;
+        renderBookingStep();
+      });
+    });
+  }
+
+  function renderConfirmStep() {
+    const doctor = getSelectedDoctor();
+    const slot = state.booking.slot ? new Date(state.booking.slot) : null;
+
+    bookingStepContent.innerHTML = `
+      <div class="booking-step-copy">
+        <strong>Confirm details</strong>
+        <span>Add a short reason so the doctor can prepare before the visit.</span>
+      </div>
+      <div class="booking-review">
+        <div><span>Specialty</span><strong>${escapeHtml(state.booking.specialty)}</strong></div>
+        <div><span>Doctor</span><strong>${escapeHtml(doctor ? doctor.name : 'Automatic assignment')}</strong></div>
+        <div><span>Time</span><strong>${escapeHtml(slot ? slot.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Not selected')}</strong></div>
+      </div>
+      <label class="form-label" for="visitReason">Why are you coming in?</label>
+      <textarea id="visitReason" class="form-control" rows="4" placeholder="Briefly describe your symptoms or concern.">${escapeHtml(state.booking.reason)}</textarea>
+    `;
+
+    const reasonInput = document.getElementById('visitReason');
+    reasonInput.addEventListener('input', () => {
+      state.booking.reason = reasonInput.value;
+    });
+  }
+
+  function canAdvanceBooking() {
+    if (state.booking.step === 0 && !state.booking.specialty) {
+      alert('Please choose a specialty or use automatic assignment.');
+      return false;
+    }
+    if (state.booking.step === 1 && !state.booking.doctorId) {
+      alert('Please choose a doctor or use automatic assignment.');
+      return false;
+    }
+    if (state.booking.step === 2 && !state.booking.slot) {
+      alert('Please choose a free slot.');
+      return false;
+    }
+    return true;
+  }
+
+  async function submitBooking() {
+    bookingNextBtn.disabled = true;
+    bookingNextBtn.innerHTML = '<i class="uil uil-spinner-alt uil-spin"></i> Booking...';
+
+    try {
+      await api.data.createPatientBooking(
+        state.booking.doctorId,
+        new Date(state.booking.slot).toISOString(),
+        state.booking.reason.trim()
+      );
+      closeBookingModal();
+      await loadDashboard();
+    } catch (err) {
+      console.error('Booking failed:', err);
+      alert(err.message || 'Could not book consultation.');
+    } finally {
+      bookingNextBtn.disabled = false;
+      bookingNextBtn.innerHTML = 'Book Consultation';
+    }
+  }
+
+  function autoAssignNextFreeDoctor() {
+    const doctors = state.booking.specialty ? getDoctorsForSelectedSpecialty() : state.doctors;
+    const doctor = doctors[0];
+    if (!doctor) {
+      alert('No doctors are available for automatic assignment.');
+      return;
+    }
+
+    state.booking.specialty = getDoctorSpecialty(doctor);
+    state.booking.doctorId = doctor.id;
+    state.booking.slot = generateSlots(doctor)[0]?.value || '';
+    state.booking.step = 3;
+  }
+
+  function getSpecialties() {
+    const specialties = [...new Set(state.doctors.map(getDoctorSpecialty).filter(Boolean))];
+    return specialties.length ? specialties : ['General Practice'];
+  }
+
+  function getDoctorsForSelectedSpecialty() {
+    return state.doctors.filter(doctor => getDoctorSpecialty(doctor) === state.booking.specialty);
+  }
+
+  function getSelectedDoctor() {
+    return state.doctors.find(doctor => doctor.id === state.booking.doctorId);
+  }
+
+  function getDoctorSpecialty(doctor) {
+    return doctor?.specialty || 'General Practice';
+  }
+
+  function getSpecialtyIcon(specialty) {
+    const value = String(specialty).toLowerCase();
+    if (value.includes('cardio')) return 'uil-heartbeat';
+    if (value.includes('neuro')) return 'uil-brain';
+    if (value.includes('pediatric')) return 'uil-baby-carriage';
+    if (value.includes('internal')) return 'uil-medical-square';
+    return 'uil-stethoscope';
+  }
+
+  function generateSlots(doctor) {
+    if (!doctor) return [];
+    const slots = [];
+    const hours = [9, 11, 14, 16];
+    const cursor = new Date();
+    cursor.setDate(cursor.getDate() + 1);
+
+    while (slots.length < 8) {
+      const day = cursor.getDay();
+      if (day !== 0 && day !== 6) {
+        hours.forEach(hour => {
+          if (slots.length >= 8) return;
+          const slot = new Date(cursor);
+          slot.setHours(hour, 0, 0, 0);
+          slots.push({
+            value: slot.toISOString(),
+            day: slot.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }),
+            time: slot.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          });
+        });
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    return slots;
+  }
+
+  function getEmptyBookingState() {
+    return {
+      step: 0,
+      specialty: '',
+      doctorId: '',
+      slot: '',
+      reason: ''
+    };
+  }
 
   function detailTile(label, text) {
     return `
@@ -387,11 +624,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const value = String(text || '').replace(/\s+/g, ' ').trim();
     if (value.length <= maxLength) return value;
     return `${value.slice(0, maxLength - 1).trim()}…`;
-  }
-
-  function toDatetimeLocalValue(date) {
-    const pad = value => String(value).padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
   }
 
   function renderError() {

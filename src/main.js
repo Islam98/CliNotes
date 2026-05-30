@@ -18,6 +18,12 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentRole = 'doctor';
   let isSignup = false;
 
+  const roleLabels = {
+    doctor: 'Doctor',
+    patient: 'Patient',
+    labs: 'Labs'
+  };
+
   // Role Selection
   roleButtons.forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -66,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
         signupDoctorElements.forEach(el => el.style.display = 'none');
         signupPatientElements.forEach(el => el.style.display = 'none');
       }
-      submitBtn.innerHTML = `Sign Up as ${currentRole.charAt(0).toUpperCase() + currentRole.slice(1)}`;
+      submitBtn.innerHTML = `Sign Up as ${roleLabels[currentRole] || currentRole}`;
     } else {
       signupDoctorElements.forEach(el => el.style.display = 'none');
       signupPatientElements.forEach(el => el.style.display = 'none');
@@ -144,6 +150,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       if (isSignup) {
+        if (currentRole === 'labs') {
+          throw new Error("Labs accounts are not available for self sign-up yet.");
+        }
+
         const firstName = document.getElementById('firstName').value.trim();
         const lastName = document.getElementById('lastName').value.trim();
         
@@ -166,6 +176,13 @@ document.addEventListener('DOMContentLoaded', () => {
         submitBtn.innerHTML = '<i class="uil uil-check"></i> Sign Up Successful!';
       } else {
         await api.auth.signIn(email, password);
+        const fetchedRole = await api.auth.getCurrentUserRole();
+
+        if (fetchedRole !== currentRole) {
+          await api.auth.signOut();
+          throw new Error(`No ${roleLabels[currentRole] || currentRole} account exists for these credentials.`);
+        }
+
         submitBtn.innerHTML = '<i class="uil uil-check"></i> Sign In Successful!';
       }
 
@@ -177,6 +194,8 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => {
         if (redirectRole === 'patient') {
           window.location.href = '/patient.html';
+        } else if (redirectRole === 'labs') {
+          window.location.href = '/labs.html';
         } else {
           window.location.href = '/doctor.html';
         }
