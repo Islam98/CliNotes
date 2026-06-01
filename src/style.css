@@ -514,6 +514,24 @@ a:hover {
   transform: scale(0.98);
 }
 
+.labs-entry-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.labs-entry-panel p {
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.labs-entry-btn {
+  background-color: var(--primary-color);
+}
+
 .login-footer {
   margin-top: var(--space-4);
   text-align: center;

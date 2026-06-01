@@ -128,6 +128,16 @@
             <!-- Session History will be loaded via JS -->
           </div>
         </div>
+
+        <div class="card lab-discussions-card col-12">
+          <div class="card-header">
+            <h3>Lab Discussions</h3>
+            <span class="section-hint">Reviewed internal doctor discussions</span>
+          </div>
+          <div class="card-body list-body">
+            <!-- Lab discussions will be loaded via JS -->
+          </div>
+        </div>
       </div>
     </main>
 
@@ -155,6 +165,23 @@
         <div class="modal-footer" style="display: flex; justify-content: space-between; border-top: 1px solid #E2E8F0; padding: 16px 24px; background: white; border-radius: 0 0 16px 16px;">
           <button class="text-btn" id="editReviewModalBtn"><i class="uil uil-edit"></i> Edit Notes</button>
           <button class="primary-btn" id="approveReviewModalBtn" style="background-color: #10B981;"><i class="uil uil-check"></i> Approve & Post</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- LAB DISCUSSION REVIEW MODAL -->
+    <div id="labReviewModal" class="modal-overlay hidden">
+      <div class="modal-content" style="max-width: 860px; width: 95%;">
+        <div class="modal-header">
+          <h3>Review Lab Discussion Report</h3>
+          <button class="close-btn" id="closeLabReviewModalBtn"><i class="uil uil-times"></i></button>
+        </div>
+        <div class="modal-body lab-review-body" id="labReviewContent">
+          <!-- Lab report populated via JS -->
+        </div>
+        <div class="modal-footer lab-review-footer">
+          <button class="text-btn" id="closeLabReviewFooterBtn"><i class="uil uil-arrow-left"></i> Back</button>
+          <button class="primary-btn" id="approveLabReviewBtn"><i class="uil uil-check"></i> Approve Discussion</button>
         </div>
       </div>
     </div>

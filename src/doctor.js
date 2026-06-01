@@ -101,6 +101,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     `;
   }
 
+  function getLabDiscussionTitle(discussion) {
+    return discussion?.structured_data?.title || discussion?.title || 'Lab Discussion';
+  }
+
+  function renderLabReportSection(title, items) {
+    const values = Array.isArray(items) ? items.filter(Boolean) : [items].filter(Boolean);
+    if (!values.length) return '';
+
+    const formatItem = (item) => {
+      if (typeof item === 'string') return item;
+      if (item?.label || item?.value) {
+        return [item.label, item.owner, item.value].filter(Boolean).join(' • ');
+      }
+      if (typeof item === 'object') {
+        return Object.entries(item)
+          .filter(([, value]) => value !== null && value !== undefined && value !== '')
+          .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
+          .join(' • ');
+      }
+      return String(item);
+    };
+
+    return `
+      <section class="lab-report-section">
+        <h4>${escapeHtml(title)}</h4>
+        <ul>
+          ${values.map(item => `<li>${escapeHtml(formatItem(item))}</li>`).join('')}
+        </ul>
+      </section>
+    `;
+  }
+
+  let latestLabDiscussions = [];
+
   async function renderPatientPreview(patientId, visitReason = '') {
     const preview = document.getElementById('patientPreviewContainer');
     if (!preview) return;
@@ -170,16 +204,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function loadDoctorData() {
     try {
       const consultations = await api.data.getConsultations();
+      let labDiscussions = [];
+      try {
+        labDiscussions = await api.data.getLabDiscussions();
+      } catch (labErr) {
+        console.warn('Lab discussions unavailable:', labErr);
+      }
+      latestLabDiscussions = labDiscussions || [];
       
       const scheduleContainer = document.querySelector('.schedule-card .list-body');
       const historyContainer = document.querySelector('.history-card .list-body');
       const draftsContainer = document.querySelector('.drafts-card .list-body');
       const recommendedActionsContainer = document.querySelector('.recommended-actions-card .list-body');
+      const labDiscussionsContainer = document.querySelector('.lab-discussions-card .list-body');
       
       scheduleContainer.innerHTML = '';
       historyContainer.innerHTML = '';
       draftsContainer.innerHTML = '';
       if(recommendedActionsContainer) recommendedActionsContainer.innerHTML = '';
+      if (labDiscussionsContainer) labDiscussionsContainer.innerHTML = '';
 
       const bookings = await api.data.getBookings();
       const scheduledBookings = (bookings || []).filter(booking => booking.status === 'scheduled' && isToday(booking.appointment_time));
@@ -217,10 +260,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
           `;
         });
-      }
-
-      if (!consultationList.length) {
-        draftsContainer.innerHTML = '<p style="padding:16px;">No drafts pending.</p>';
       }
 
       let recommendedActionCount = 0;
@@ -321,11 +360,89 @@ document.addEventListener('DOMContentLoaded', async () => {
           `;
         }
       });
+
+      latestLabDiscussions.forEach(discussion => {
+        if (!discussion?.id) return;
+
+        const created = new Date(discussion.created_at);
+        const dateStr = created.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        const title = getLabDiscussionTitle(discussion);
+        const prominentPoints = discussion.structured_data?.prominent_points || [];
+        const firstPoint = Array.isArray(prominentPoints) && prominentPoints.length
+          ? prominentPoints[0]
+          : discussion.summary_text || 'Internal clinical discussion';
+
+        if (discussion.status === 'processed' && !discussion.approved_at) {
+          draftsContainer.innerHTML += `
+            <div class="list-row draft-row lab-draft-row">
+              <div class="row-info">
+                <div class="avatar-sm lab-avatar"><i class="uil uil-flask"></i></div>
+                <div class="draft-details">
+                  <span class="name">${escapeHtml(title)}</span>
+                  <span class="date">${dateStr} • Lab discussion report ready</span>
+                </div>
+              </div>
+              <div class="row-actions">
+                <span class="badge status-ready">Ready for Review</span>
+                <button class="primary-btn lab-review-btn" data-id="${discussion.id}">Review</button>
+              </div>
+            </div>
+          `;
+
+          if (recommendedActionsContainer && recommendedActionCount < 6) {
+            recommendedActionsContainer.innerHTML += buildRecommendedActionRow({
+              icon: 'uil-flask',
+              tone: 'lab',
+              title: 'Review lab discussion',
+              detail: `${title} • report ready`,
+              actionHtml: `<button class="text-btn lab-review-btn" data-id="${discussion.id}">Review</button>`
+            });
+            recommendedActionCount++;
+          }
+        } else if (discussion.status === 'processing') {
+          draftsContainer.innerHTML += `
+            <div class="list-row draft-row lab-draft-row">
+              <div class="row-info" style="width: 100%;">
+                <div class="avatar-sm lab-avatar muted"><i class="uil uil-flask"></i></div>
+                <div class="draft-details" style="flex: 1;">
+                  <span class="name">${escapeHtml(title)}</span>
+                  <span class="date">${dateStr} • Transcription and summary in progress...</span>
+                  <div style="height: 4px; width: 100%; background: #E2E8F0; border-radius: 2px; margin-top: 8px; overflow: hidden;">
+                    <div style="height: 100%; width: 50%; background: #3B82F6; animation: slide 2s infinite alternate;"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="row-actions">
+                <span class="badge" style="background: #F3F4F6; color: #6B7280;">Processing</span>
+              </div>
+            </div>
+          `;
+        }
+
+        if (labDiscussionsContainer && (discussion.approved_at || discussion.status === 'reviewed')) {
+          labDiscussionsContainer.innerHTML += `
+            <div class="list-row lab-discussion-row">
+              <div class="row-info">
+                <span class="date-tag">${dateStr}</span>
+                <div class="lab-discussion-summary">
+                  <span class="name">${escapeHtml(title)}</span>
+                  <span>${escapeHtml(firstPoint)}</span>
+                </div>
+              </div>
+              <div class="history-actions">
+                <button class="secondary-btn lab-review-btn" data-id="${discussion.id}"><i class="uil uil-file-search-alt"></i> View Report</button>
+              </div>
+            </div>
+          `;
+        }
+      });
       
       // Update badge counts
       const draftsBadge = document.querySelector('.drafts-card .count-badge');
       if (draftsBadge) {
-        const count = consultationList.filter(c => c.status === 'processing' || c.status === 'processed').length;
+        const clinicalDraftCount = consultationList.filter(c => c.status === 'processing' || c.status === 'processed').length;
+        const labDraftCount = latestLabDiscussions.filter(d => d.status === 'processing' || (d.status === 'processed' && !d.approved_at)).length;
+        const count = clinicalDraftCount + labDraftCount;
         draftsBadge.innerText = `${count} Pending`;
       }
 
@@ -335,6 +452,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (!historyContainer.innerHTML.trim()) {
         historyContainer.innerHTML = '<p style="padding:16px;">No completed consultations.</p>';
+      }
+
+      if (labDiscussionsContainer && !labDiscussionsContainer.innerHTML.trim()) {
+        labDiscussionsContainer.innerHTML = '<p style="padding:16px;">No reviewed lab discussions yet.</p>';
       }
       
       if (recommendedActionsContainer && recommendedActionCount === 0) {
@@ -386,7 +507,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.querySelectorAll('.review-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
           const consultationId = e.target.getAttribute('data-id');
-          openReviewModal(consultationId);
+          window.openReviewModal(consultationId);
+        });
+      });
+
+      document.querySelectorAll('.lab-review-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const discussionId = e.target.closest('.lab-review-btn').getAttribute('data-id');
+          window.openLabReviewModal(discussionId);
         });
       });
 
@@ -450,7 +578,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Set up polling for processing items
   setInterval(() => {
     // Only poll if there are items processing
-    const hasProcessing = document.querySelector('.draft-row .badge')?.innerText === 'Processing';
+    const hasProcessing = Array.from(document.querySelectorAll('.draft-row .badge'))
+      .some(badge => badge.innerText === 'Processing');
     if (hasProcessing) {
       loadDoctorData();
     }
@@ -465,7 +594,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       try {
         testScheduleBtn.disabled = true;
         testScheduleBtn.innerHTML = '<i class="uil uil-spinner-alt uil-spin"></i> Scheduling...';
-        // Test patient ID from mock_patient.sql
+        // Test patient ID from supabase/seeds/mock_patient.sql
         await api.data.createBooking('99999999-9999-9999-9999-999999999999');
         await loadDoctorData();
       } catch (err) {
@@ -833,9 +962,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   const editReviewModalBtn = document.getElementById('editReviewModalBtn');
   const approveReviewModalBtn = document.getElementById('approveReviewModalBtn');
   const aiReviewForm = document.getElementById('aiReviewForm');
+  const labReviewModal = document.getElementById('labReviewModal');
+  const closeLabReviewModalBtn = document.getElementById('closeLabReviewModalBtn');
+  const closeLabReviewFooterBtn = document.getElementById('closeLabReviewFooterBtn');
+  const approveLabReviewBtn = document.getElementById('approveLabReviewBtn');
+  const labReviewContent = document.getElementById('labReviewContent');
   
   let currentReviewData = null;
   let isEditingReview = false;
+  let currentLabDiscussionId = null;
   
   if (aiReviewModal) {
     closeReviewModalBtn.addEventListener('click', () => {
@@ -903,6 +1038,91 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
   }
+
+  function closeLabReviewModal() {
+    if (labReviewModal) labReviewModal.classList.add('hidden');
+    currentLabDiscussionId = null;
+  }
+
+  if (labReviewModal) {
+    closeLabReviewModalBtn?.addEventListener('click', closeLabReviewModal);
+    closeLabReviewFooterBtn?.addEventListener('click', closeLabReviewModal);
+    labReviewModal.addEventListener('click', (e) => {
+      if (e.target === labReviewModal) closeLabReviewModal();
+    });
+
+    approveLabReviewBtn?.addEventListener('click', async () => {
+      if (!currentLabDiscussionId) return;
+
+      try {
+        approveLabReviewBtn.disabled = true;
+        approveLabReviewBtn.innerHTML = '<i class="uil uil-spinner-alt uil-spin"></i> Approving...';
+        await api.data.approveLabDiscussion(currentLabDiscussionId);
+        closeLabReviewModal();
+        await loadDoctorData();
+      } catch (err) {
+        console.error('Failed to approve lab discussion:', err);
+        alert('Could not approve this lab discussion report.');
+      } finally {
+        approveLabReviewBtn.disabled = false;
+        approveLabReviewBtn.innerHTML = '<i class="uil uil-check"></i> Approve Discussion';
+      }
+    });
+  }
+
+  window.openLabReviewModal = function(discussionId) {
+    if (!labReviewModal || !labReviewContent) return;
+
+    const discussion = latestLabDiscussions.find(item => item.id === discussionId);
+    if (!discussion) {
+      alert('Lab discussion report not found.');
+      return;
+    }
+
+    currentLabDiscussionId = discussionId;
+    const structured = discussion.structured_data || {};
+    const title = getLabDiscussionTitle(discussion);
+    const created = discussion.created_at
+      ? new Date(discussion.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : '';
+
+    labReviewContent.innerHTML = `
+      <div class="lab-report-hero">
+        <div>
+          <span>Internal Doctor Discussion</span>
+          <h2>${escapeHtml(title)}</h2>
+          <p>${escapeHtml(created)}</p>
+        </div>
+        <span class="badge ${discussion.approved_at || discussion.status === 'reviewed' ? 'status-ready' : ''}">
+          ${discussion.approved_at || discussion.status === 'reviewed' ? 'Reviewed' : 'Draft'}
+        </span>
+      </div>
+
+      <section class="lab-report-section lab-report-summary">
+        <h4>Summary</h4>
+        <p>${escapeHtml(discussion.summary_text || 'No summary generated yet.')}</p>
+      </section>
+
+      <div class="lab-report-grid">
+        ${renderLabReportSection('Prominent Points', structured.prominent_points)}
+        ${renderLabReportSection('Decisions', structured.decisions)}
+        ${renderLabReportSection('Open Questions', structured.open_questions)}
+        ${renderLabReportSection('Action Plan', structured.action_plan)}
+      </div>
+
+      <details class="lab-transcript-details">
+        <summary>Transcript</summary>
+        <p>${escapeHtml(discussion.transcript_text || 'Transcript unavailable.')}</p>
+      </details>
+    `;
+
+    if (approveLabReviewBtn) {
+      const isReviewed = Boolean(discussion.approved_at || discussion.status === 'reviewed');
+      approveLabReviewBtn.classList.toggle('hidden', isReviewed);
+    }
+
+    labReviewModal.classList.remove('hidden');
+  };
 
   window.openReviewModal = async function(consultationId) {
     if (!aiReviewModal || !aiReviewForm) return;

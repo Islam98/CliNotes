@@ -1,0 +1,260 @@
+.labs-body {
+  background: #F7F9FC;
+  display: block;
+  min-height: 100vh;
+  font-family: var(--font-family);
+}
+
+.labs-topbar {
+  height: 64px;
+  background: white;
+  border-bottom: 1px solid #E5E7EB;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+}
+
+.labs-logo {
+  color: var(--primary-color);
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.labs-pill {
+  background: rgba(47, 111, 237, 0.1);
+  color: var(--primary-color);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.labs-container {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 32px 24px 48px;
+}
+
+.labs-hero {
+  background: white;
+  border-radius: 16px;
+  padding: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  box-shadow: var(--shadow-soft);
+  margin-bottom: 24px;
+}
+
+.labs-hero h1 {
+  font-size: 32px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.labs-hero p {
+  color: var(--text-secondary);
+  font-size: 16px;
+  max-width: 640px;
+}
+
+.start-discussion-btn,
+.stop-discussion-btn,
+.secondary-action-btn {
+  border: none;
+  border-radius: 12px;
+  font-family: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.start-discussion-btn {
+  background: var(--primary-color);
+  color: white;
+  min-height: 56px;
+  padding: 0 24px;
+  font-size: 16px;
+  white-space: nowrap;
+}
+
+.start-discussion-btn:hover {
+  background: #255CC4;
+}
+
+.labs-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 24px;
+}
+
+.labs-card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+}
+
+.labs-card-header {
+  padding: 20px 22px;
+  border-bottom: 1px solid #F3F4F6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.labs-card-header h2 {
+  font-size: 18px;
+}
+
+.labs-card-header span {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.participants-window {
+  min-height: 300px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.participant-row {
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.participant-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(47, 111, 237, 0.1);
+  color: var(--primary-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+}
+
+.participant-row strong {
+  display: block;
+  color: var(--text-primary);
+}
+
+.participant-row span,
+.empty-copy {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.doctor-credential-form {
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.doctor-credential-form label {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.doctor-credential-form input {
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 15px;
+}
+
+.doctor-credential-form input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: var(--shadow-focus);
+}
+
+.secondary-action-btn {
+  background: rgba(47, 111, 237, 0.1);
+  color: var(--primary-color);
+  min-height: 44px;
+  margin-top: 8px;
+}
+
+.recording-panel {
+  margin-top: 24px;
+  background: #111827;
+  color: white;
+  border-radius: 16px;
+  padding: 18px 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+}
+
+.recording-panel.hidden,
+.toast.hidden {
+  display: none;
+}
+
+.recording-state {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.recording-dot {
+  width: 12px;
+  height: 12px;
+  background: #EF4444;
+  border-radius: 50%;
+  animation: pulse 1.5s infinite;
+}
+
+.stop-discussion-btn {
+  background: #FEE2E2;
+  color: #991B1B;
+  min-height: 42px;
+  padding: 0 18px;
+}
+
+.toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  background: #111827;
+  color: white;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+  70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+@media (max-width: 860px) {
+  .labs-hero,
+  .recording-panel {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .labs-grid {
+    grid-template-columns: 1fr;
+  }
+}

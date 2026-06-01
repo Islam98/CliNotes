@@ -30,6 +30,7 @@ if (geminiApiKey && geminiApiKey !== 'your_gemini_api_key_here') {
 
 // ─── Supabase Admin Client (bypasses RLS) ───
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 let supabaseAdmin;
 if (supabaseUrl && supabaseServiceKey && supabaseServiceKey !== 'your_supabase_service_role_key_here') {
@@ -137,6 +138,33 @@ when the rest of the conversation is in Arabic.`,
       ],
     },
     client_reference_id: 'clinotes',
+  };
+}
+
+function buildLabDiscussionTranscriptionConfig(fileId, participants = []) {
+  const participantNames = participants.map(p => p.name).filter(Boolean).join(', ') || 'multiple doctors';
+  return {
+    ...buildTranscriptionConfig(fileId),
+    context: {
+      general: [
+        { key: 'domain', value: 'Healthcare / Internal clinical discussion' },
+        { key: 'topic', value: 'Discussion between doctors about lab findings, scans, diagnoses, care decisions, and action planning' },
+        { key: 'participants', value: participantNames },
+        { key: 'languages', value: 'English and Arabic, possibly mixed within sentences' },
+      ],
+      text: `This is an internal clinical discussion between doctors, not a doctor-patient visit. 
+The speakers may discuss lab results, imaging findings, differential diagnoses, care coordination, 
+handoff details, treatment options, risk concerns, and action items. The discussion may switch 
+between Arabic and English, with English medical terminology inside Arabic sentences.`,
+      terms: [
+        'CBC', 'HbA1c', 'A1C', 'lipid profile', 'creatinine', 'urea', 'electrolytes',
+        'LFT', 'AST', 'ALT', 'bilirubin', 'TSH', 'troponin', 'D-dimer',
+        'MRI', 'CT scan', 'X-ray', 'ultrasound', 'radiology', 'pathology',
+        'differential diagnosis', 'follow-up', 'referral', 'repeat labs',
+        'critical value', 'abnormal finding', 'action plan', 'case discussion',
+      ],
+    },
+    client_reference_id: 'clinotes-lab-discussion',
   };
 }
 
@@ -370,6 +398,42 @@ Ensure the output is strictly valid JSON and nothing else.
   return JSON.parse(response.response.text());
 }
 
+async function analyzeLabDiscussionWithGemini(transcriptText) {
+  if (!gemini) {
+    throw new Error("Gemini API key is missing or invalid on the server.");
+  }
+
+  const systemPrompt = `
+You are a clinical documentation assistant. Analyze an internal doctor-to-doctor discussion transcript.
+The discussion may include Arabic-English code switching. Return strictly valid JSON:
+{
+  "summary_text": "A concise 2-4 sentence summary of the discussion.",
+  "structured_data": {
+    "title": "A clear headline for the discussion",
+    "prominent_points": ["important clinical, lab, imaging, or workflow points"],
+    "decisions": ["decisions or consensus reached"],
+    "open_questions": ["uncertainties or items needing more review"],
+    "action_plan": [
+      { "label": "Action", "owner": "Doctor/team if mentioned", "value": "What should happen next" }
+    ]
+  }
+}
+Do not invent facts. If an item is not mentioned, use an empty array.
+`;
+
+  const model = gemini.getGenerativeModel({
+    model: "gemini-2.5-flash",
+    systemInstruction: systemPrompt,
+    generationConfig: {
+      temperature: 0.2,
+      responseMimeType: "application/json",
+    }
+  });
+
+  const response = await model.generateContent(transcriptText);
+  return JSON.parse(response.response.text());
+}
+
 // ─── Existing: Analyze Transcript Endpoint ───
 app.post('/api/analyze-transcript', async (req, res) => {
   const { transcriptText } = req.body;
@@ -585,6 +649,341 @@ app.get('/api/transcribe/:consultationId', async (req, res) => {
     }
 
     res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==========================================
+// LAB DISCUSSION ROUTES
+// ==========================================
+
+app.post('/api/labs/verify-doctor', async (req, res) => {
+  if (!supabaseUrl || !supabaseAnonKey || !supabaseAdmin) {
+    return res.status(500).json({ error: 'Supabase clients are not configured.' });
+  }
+
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required.' });
+  }
+
+  try {
+    const supabaseAuthClient = createClient(supabaseUrl, supabaseAnonKey);
+    const { data: authData, error: authError } = await supabaseAuthClient.auth.signInWithPassword({ email, password });
+    if (authError || !authData.user) {
+      return res.status(401).json({ error: 'Invalid doctor credentials.' });
+    }
+
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .select('role')
+      .eq('id', authData.user.id)
+      .single();
+
+    if (profileError || profile?.role !== 'doctor') {
+      return res.status(403).json({ error: 'These credentials do not belong to a doctor account.' });
+    }
+
+    const { data: doctor, error: doctorError } = await supabaseAdmin
+      .from('doctor')
+      .select('id, name, specialty')
+      .eq('id', authData.user.id)
+      .single();
+
+    if (doctorError || !doctor) {
+      return res.status(404).json({ error: 'Doctor profile was not found.' });
+    }
+
+    await supabaseAuthClient.auth.signOut();
+    res.json(doctor);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/labs/discussions', async (req, res) => {
+  if (!supabaseAdmin) {
+    return res.status(500).json({ error: 'Supabase admin client is not configured.' });
+  }
+
+  const { title, participantIds } = req.body;
+  const ids = [...new Set(participantIds || [])];
+  if (ids.length < 1) {
+    return res.status(400).json({ error: 'At least one doctor participant is required.' });
+  }
+
+  try {
+    const { data: discussion, error: discussionError } = await supabaseAdmin
+      .from('lab_discussion')
+      .insert([{ title: title || 'Internal Clinical Discussion', status: 'pending' }])
+      .select()
+      .single();
+
+    if (discussionError) throw discussionError;
+
+    const { error: participantError } = await supabaseAdmin
+      .from('lab_discussion_participant')
+      .insert(ids.map(id => ({ discussion_id: discussion.id, doctor_id: id })));
+
+    if (participantError) throw participantError;
+
+    res.json(discussion);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/labs/discussions/:discussionId/audio', express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '50mb' }), async (req, res) => {
+  if (!supabaseAdmin) {
+    return res.status(500).json({ error: 'Supabase admin client is not configured.' });
+  }
+
+  const { discussionId } = req.params;
+  const audioBuffer = req.body;
+  if (!audioBuffer || !Buffer.isBuffer(audioBuffer)) {
+    return res.status(400).json({ error: 'No audio data received.' });
+  }
+
+  const fileName = `${discussionId}/${Date.now()}.webm`;
+
+  try {
+    let { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+      .from('lab-discussion-audio')
+      .upload(fileName, audioBuffer, {
+        contentType: 'audio/webm',
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (uploadError) {
+      if (uploadError.message.includes('Bucket not found') || uploadError.message.includes('bucket')) {
+        await supabaseAdmin.storage.createBucket('lab-discussion-audio', { public: false });
+        const retry = await supabaseAdmin.storage
+          .from('lab-discussion-audio')
+          .upload(fileName, audioBuffer, {
+            contentType: 'audio/webm',
+            cacheControl: '3600',
+            upsert: false
+          });
+        if (retry.error) throw retry.error;
+        uploadData = retry.data;
+      } else {
+        throw uploadError;
+      }
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('lab_discussion')
+      .update({ audio_path: uploadData.path || fileName, status: 'processing' })
+      .eq('id', discussionId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/labs/discussions/:discussionId/transcribe', async (req, res) => {
+  if (!SONIOX_API_KEY || SONIOX_API_KEY === 'your_soniox_api_key_here') {
+    return res.status(500).json({ error: 'Soniox API key is not configured on the server.' });
+  }
+  if (!supabaseAdmin) {
+    return res.status(500).json({ error: 'Supabase admin client is not configured.' });
+  }
+
+  const { discussionId } = req.params;
+  let sonioxFileId = null;
+  let sonioxTranscriptionId = null;
+
+  try {
+    const { data: discussion, error: discussionError } = await supabaseAdmin
+      .from('lab_discussion')
+      .select('id, title, audio_path')
+      .eq('id', discussionId)
+      .single();
+
+    if (discussionError || !discussion?.audio_path) {
+      return res.status(404).json({ error: 'No audio file found for this lab discussion.' });
+    }
+
+    const { data: participants } = await supabaseAdmin
+      .from('lab_discussion_participant')
+      .select('doctor:doctor_id(name, specialty)')
+      .eq('discussion_id', discussionId);
+
+    const participantDoctors = (participants || []).map(p => p.doctor).filter(Boolean);
+
+    const { data: audioData, error: downloadError } = await supabaseAdmin.storage
+      .from('lab-discussion-audio')
+      .download(discussion.audio_path);
+
+    if (downloadError || !audioData) {
+      return res.status(500).json({ error: `Failed to download audio: ${downloadError?.message || 'Unknown error'}` });
+    }
+
+    const audioBuffer = Buffer.from(await audioData.arrayBuffer());
+
+    res.json({ message: 'Lab discussion transcription started.', status: 'processing' });
+
+    (async () => {
+      try {
+        const filename = discussion.audio_path.split('/').pop() || 'lab-discussion.webm';
+        const uploadResult = await uploadToSoniox(audioBuffer, filename);
+        sonioxFileId = uploadResult.id;
+
+        const config = buildLabDiscussionTranscriptionConfig(sonioxFileId, participantDoctors);
+        const transcription = await createTranscription(config);
+        sonioxTranscriptionId = transcription.id;
+
+        await supabaseAdmin
+          .from('lab_discussion')
+          .update({ soniox_transcription_id: sonioxTranscriptionId })
+          .eq('id', discussionId);
+
+        const completedMeta = await waitForTranscription(sonioxTranscriptionId);
+        const transcriptResult = await getTranscript(sonioxTranscriptionId);
+        const plainText = transcriptResult.text || '';
+        const markdownText = renderTranscriptMarkdown(transcriptResult.tokens || [], completedMeta);
+
+        let aiResult = {
+          summary_text: 'Discussion transcribed successfully.',
+          structured_data: {}
+        };
+
+        if (gemini && plainText.trim().length > 10) {
+          aiResult = await analyzeLabDiscussionWithGemini(plainText);
+        }
+
+        await supabaseAdmin
+          .from('lab_discussion')
+          .update({
+            transcript_text: plainText,
+            transcript_markdown: markdownText,
+            summary_text: aiResult.summary_text || 'Analysis completed.',
+            structured_data: aiResult.structured_data || {},
+            title: aiResult.structured_data?.title || discussion.title || 'Internal Clinical Discussion',
+            status: 'processed',
+          })
+          .eq('id', discussionId);
+
+        await cleanupSoniox(sonioxTranscriptionId, sonioxFileId);
+      } catch (bgError) {
+        console.error('[Labs] Background processing error:', bgError);
+        await supabaseAdmin
+          .from('lab_discussion')
+          .update({ status: 'error', error_message: bgError.message })
+          .eq('id', discussionId);
+        await cleanupSoniox(sonioxTranscriptionId, sonioxFileId);
+      }
+    })();
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/labs/doctor-discussions', async (req, res) => {
+  if (!supabaseAdmin) {
+    return res.status(500).json({ error: 'Supabase admin client is not configured.' });
+  }
+
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication is required.' });
+  }
+
+  try {
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
+    if (userError || !userData.user) {
+      return res.status(401).json({ error: 'Invalid session.' });
+    }
+
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .select('role')
+      .eq('id', userData.user.id)
+      .single();
+
+    if (profileError || profile?.role !== 'doctor') {
+      return res.status(403).json({ error: 'Only doctor accounts can view lab discussions.' });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('lab_discussion_participant')
+      .select(`
+        approved_at,
+        created_at,
+        discussion:discussion_id(
+          id,
+          title,
+          summary_text,
+          structured_data,
+          status,
+          created_at,
+          transcript_text,
+          error_message
+        )
+      `)
+      .eq('doctor_id', userData.user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const discussions = (data || [])
+      .map(row => row.discussion ? { ...row.discussion, approved_at: row.approved_at } : null)
+      .filter(Boolean);
+
+    res.json(discussions);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/labs/discussions/:discussionId/approve', async (req, res) => {
+  if (!supabaseAdmin) {
+    return res.status(500).json({ error: 'Supabase admin client is not configured.' });
+  }
+
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication is required.' });
+  }
+
+  try {
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
+    if (userError || !userData.user) {
+      return res.status(401).json({ error: 'Invalid session.' });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('lab_discussion_participant')
+      .update({ approved_at: new Date().toISOString() })
+      .eq('discussion_id', req.params.discussionId)
+      .eq('doctor_id', userData.user.id)
+      .select(`
+        approved_at,
+        discussion:discussion_id(
+          id,
+          title,
+          summary_text,
+          structured_data,
+          status,
+          created_at,
+          transcript_text,
+          error_message
+        )
+      `)
+      .single();
+
+    if (error) throw error;
+    if (!data?.discussion) {
+      return res.status(404).json({ error: 'Lab discussion was not found for this doctor.' });
+    }
+
+    res.json({ ...data.discussion, approved_at: data.approved_at });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

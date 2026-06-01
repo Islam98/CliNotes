@@ -492,6 +492,85 @@ export const api = {
       
       if (error) throw error;
       return true;
+    },
+
+    async verifyLabDoctor(email, password) {
+      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const response = await fetch(`${serverUrl}/api/labs/verify-doctor`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not verify doctor credentials.');
+      return data;
+    },
+
+    async createLabDiscussion(title, participantIds) {
+      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const response = await fetch(`${serverUrl}/api/labs/discussions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, participantIds }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not create lab discussion.');
+      return data;
+    },
+
+    async uploadLabDiscussionAudio(discussionId, audioBlobOrFile) {
+      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const response = await fetch(`${serverUrl}/api/labs/discussions/${discussionId}/audio`, {
+        method: 'POST',
+        headers: { 'Content-Type': audioBlobOrFile.type || 'audio/webm' },
+        body: audioBlobOrFile,
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Lab discussion audio upload failed.');
+      return data;
+    },
+
+    async triggerLabDiscussionTranscription(discussionId) {
+      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const response = await fetch(`${serverUrl}/api/labs/discussions/${discussionId}/transcribe`, {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Lab discussion transcription failed.');
+      return data;
+    },
+
+    async getLabDiscussions() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not authenticated");
+
+      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const response = await fetch(`${serverUrl}/api/labs/doctor-discussions`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not load lab discussions.');
+      return data;
+    },
+
+    async approveLabDiscussion(discussionId) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not authenticated");
+
+      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const response = await fetch(`${serverUrl}/api/labs/discussions/${discussionId}/approve`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not approve lab discussion.');
+      return data;
     }
   }
 };

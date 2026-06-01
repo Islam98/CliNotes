@@ -14,6 +14,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const signupOnlyElements = document.querySelectorAll('.signup-only');
   const signupDoctorElements = document.querySelectorAll('.signup-fields-doctor');
   const signupPatientElements = document.querySelectorAll('.signup-fields-patient');
+  const labsEntryPanel = document.getElementById('labsEntryPanel');
+  const goToLabsBtn = document.getElementById('goToLabsBtn');
 
   let currentRole = 'doctor';
   let isSignup = false;
@@ -55,10 +57,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateFormUI() {
     hideError();
+    const showLabsEntry = currentRole === 'labs';
+    loginForm.style.display = showLabsEntry ? 'none' : 'flex';
+    if (labsEntryPanel) labsEntryPanel.style.display = showLabsEntry ? 'flex' : 'none';
 
     // Show/hide based on mode
-    loginOnlyElements.forEach(el => el.style.display = isSignup ? 'none' : 'flex');
-    signupOnlyElements.forEach(el => el.style.display = isSignup ? 'flex' : 'none');
+    loginOnlyElements.forEach(el => el.style.display = isSignup || showLabsEntry ? 'none' : 'flex');
+    signupOnlyElements.forEach(el => el.style.display = isSignup && !showLabsEntry ? 'flex' : 'none');
 
     // Show/hide role specific fields in signup mode
     if (isSignup) {
@@ -124,6 +129,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (closeErrorModal) closeErrorModal.addEventListener('click', hideError);
   if (ackErrorModal) ackErrorModal.addEventListener('click', hideError);
+  if (goToLabsBtn) {
+    goToLabsBtn.addEventListener('click', () => {
+      window.location.href = '/labs.html';
+    });
+  }
 
   // Reset state when coming back to page via back button
   window.addEventListener('pageshow', (e) => {
