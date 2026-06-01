@@ -60,15 +60,19 @@
     </section>
 
     <section class="recording-panel hidden" id="recordingPanel">
-      <div class="recording-state">
-        <span class="recording-dot"></span>
-        <strong id="recordingTimer">00:00</strong>
-        <span id="recordingStatus">Recording discussion</span>
+      <div class="recording-primary">
+        <div class="recording-indicator"></div>
+        <div>
+          <span class="recording-kicker" id="recordingStatus">Recording lab discussion</span>
+          <strong class="recording-time" id="recordingTimer">00:00</strong>
+        </div>
       </div>
-      <button class="stop-discussion-btn" id="stopDiscussionBtn">
-        <i class="uil uil-stop-circle"></i>
-        Stop & Process
-      </button>
+      <div class="recording-actions">
+        <button class="record-action-btn stop-btn" id="stopDiscussionBtn">
+          <i class="uil uil-stop-circle"></i>
+          Stop & Process
+        </button>
+      </div>
     </section>
   </main>
 

@@ -61,7 +61,6 @@
 }
 
 .start-discussion-btn,
-.stop-discussion-btn,
 .secondary-action-btn {
   border: none;
   border-radius: 12px;
@@ -193,41 +192,98 @@
 }
 
 .recording-panel {
-  margin-top: 24px;
-  background: #111827;
-  color: white;
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(720px, calc(100% - 32px));
+  background: #FFFFFF;
+  color: var(--text-primary);
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  border-left: 6px solid #EF4444;
   border-radius: 16px;
-  padding: 18px 22px;
+  padding: 16px 18px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
   gap: 18px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.18);
+  z-index: 1000;
+  opacity: 1;
+  transition: transform 0.25s ease, opacity 0.25s ease;
 }
 
-.recording-panel.hidden,
+.recording-panel.hidden {
+  display: flex;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 24px);
+}
+
 .toast.hidden {
   display: none;
 }
 
-.recording-state {
+.recording-primary {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
+  min-width: 0;
 }
 
-.recording-dot {
-  width: 12px;
-  height: 12px;
+.recording-indicator {
+  width: 16px;
+  height: 16px;
   background: #EF4444;
   border-radius: 50%;
-  animation: pulse 1.5s infinite;
+  box-shadow: 0 0 0 8px rgba(239, 68, 68, 0.12);
+  animation: recordPulse 1.6s infinite;
+  flex-shrink: 0;
 }
 
-.stop-discussion-btn {
-  background: #FEE2E2;
-  color: #991B1B;
-  min-height: 42px;
+.recording-kicker {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+
+.recording-time {
+  display: block;
+  font-variant-numeric: tabular-nums;
+  font-size: 34px;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.recording-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.record-action-btn {
+  border: none;
+  border-radius: 12px;
+  font-family: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
   padding: 0 18px;
+}
+
+.stop-btn {
+  background: #EF4444;
+  color: #FFFFFF;
+}
+
+.stop-btn:hover {
+  background: #DC2626;
 }
 
 .toast {
@@ -241,17 +297,26 @@
   font-weight: 700;
 }
 
-@keyframes pulse {
-  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
-  70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+@keyframes recordPulse {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.35); }
+  70% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
   100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
 }
 
 @media (max-width: 860px) {
-  .labs-hero,
-  .recording-panel {
+  .labs-hero {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .recording-panel {
+    bottom: 18px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .record-action-btn {
+    width: 100%;
   }
 
   .labs-grid {

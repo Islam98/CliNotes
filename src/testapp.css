@@ -1,0 +1,414 @@
+.testapp-body {
+  min-height: 100vh;
+  display: block;
+  background: #F7F9FC;
+  font-family: var(--font-family);
+}
+
+.testapp-topbar {
+  min-height: 68px;
+  background: #FFFFFF;
+  border-bottom: 1px solid #E5E7EB;
+  padding: 14px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.testapp-topbar > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.testapp-logo {
+  color: var(--primary-color);
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.testapp-badge,
+.eyebrow,
+#modePill {
+  background: rgba(47, 111, 237, 0.1);
+  color: var(--primary-color);
+  border-radius: 999px;
+  padding: 7px 11px;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.testapp-topbar p {
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.testapp-shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 30px 24px 48px;
+}
+
+.testapp-hero {
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 24px;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.testapp-hero h1 {
+  color: var(--text-primary);
+  font-size: 34px;
+  line-height: 1.05;
+  margin: 12px 0 10px;
+}
+
+.testapp-hero p,
+.card-header p {
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.hero-actions {
+  display: grid;
+  gap: 12px;
+  width: 320px;
+}
+
+.mode-button {
+  min-height: 72px;
+  border: none;
+  border-radius: 14px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 900;
+  color: #FFFFFF;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 14px 30px rgba(47, 111, 237, 0.2);
+}
+
+.mode-button i {
+  font-size: 24px;
+}
+
+.consultation-mode {
+  background: var(--primary-color);
+}
+
+.labs-mode {
+  background: #0F766E;
+}
+
+.mode-button.inactive {
+  background: #E5E7EB;
+  color: #4B5563;
+  box-shadow: none;
+}
+
+.testapp-grid {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.9fr) minmax(0, 1.1fr);
+  gap: 24px;
+}
+
+.test-card {
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 16px;
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+}
+
+.card-header {
+  padding: 20px 22px;
+  border-bottom: 1px solid #F3F4F6;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.card-header h2 {
+  color: var(--text-primary);
+  font-size: 20px;
+  margin-bottom: 4px;
+}
+
+.mock-fields,
+.recording-console,
+.pipeline-diagnostics,
+#outputContent {
+  padding: 20px 22px;
+}
+
+.mock-fields.hidden {
+  display: none;
+}
+
+.mock-fields label {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.doctor-entry-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+
+.doctor-entry-row input {
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 15px;
+}
+
+.doctor-entry-row button,
+.record-start-btn,
+.record-stop-btn {
+  border: none;
+  border-radius: 12px;
+  font-family: inherit;
+  font-weight: 900;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.doctor-entry-row button {
+  background: rgba(47, 111, 237, 0.1);
+  color: var(--primary-color);
+  padding: 0 14px;
+}
+
+.mock-doctor-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mock-doctor-list span {
+  border-radius: 999px;
+  background: #F3F4F6;
+  color: var(--text-primary);
+  padding: 7px 10px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.recording-console {
+  border-top: 1px solid #F3F4F6;
+  border-bottom: 1px solid #F3F4F6;
+  display: grid;
+  gap: 18px;
+}
+
+.recording-readout {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.recording-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #9CA3AF;
+  box-shadow: 0 0 0 8px rgba(156, 163, 175, 0.15);
+}
+
+.recording-dot.active {
+  background: #EF4444;
+  animation: recordPulse 1.6s infinite;
+}
+
+.recording-readout span:not(.recording-dot) {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.recording-readout strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 36px;
+  line-height: 1;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.recording-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.record-start-btn {
+  background: var(--primary-color);
+  color: #FFFFFF;
+  min-height: 50px;
+}
+
+.record-stop-btn {
+  background: #EF4444;
+  color: #FFFFFF;
+  min-height: 50px;
+}
+
+.record-start-btn:disabled,
+.record-stop-btn:disabled {
+  background: #E5E7EB;
+  color: #9CA3AF;
+  cursor: not-allowed;
+}
+
+.pipeline-diagnostics h3 {
+  color: var(--text-primary);
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+
+.diagnostic-row {
+  min-height: 38px;
+  border: 1px solid #F3F4F6;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.diagnostic-row.done {
+  color: #047857;
+  background: #ECFDF5;
+}
+
+.diagnostic-row.active {
+  color: #1D4ED8;
+  background: #EFF6FF;
+}
+
+.empty-output {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.output-section {
+  border-bottom: 1px solid #F3F4F6;
+  padding: 18px 0;
+}
+
+.output-section:first-child {
+  padding-top: 0;
+}
+
+.output-section:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.output-section h3 {
+  color: var(--text-primary);
+  font-size: 17px;
+  margin-bottom: 10px;
+}
+
+.soap-grid,
+.patient-language-grid,
+.lab-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.display-tile {
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  background: #FAFBFC;
+  padding: 12px;
+}
+
+.display-tile strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 13px;
+  margin-bottom: 5px;
+}
+
+.display-tile p,
+.display-tile li {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.output-json,
+.transcript-box {
+  max-height: 340px;
+  overflow: auto;
+  background: #0F172A;
+  color: #E5E7EB;
+  border-radius: 12px;
+  padding: 14px;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.transcript-box {
+  background: #F8FAFC;
+  color: var(--text-primary);
+  border: 1px solid #E5E7EB;
+}
+
+@keyframes recordPulse {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.35); }
+  70% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+@media (max-width: 900px) {
+  .testapp-topbar,
+  .testapp-hero {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hero-actions,
+  .testapp-grid {
+    width: 100%;
+    grid-template-columns: 1fr;
+  }
+
+  .recording-controls,
+  .soap-grid,
+  .patient-language-grid,
+  .lab-grid {
+    grid-template-columns: 1fr;
+  }
+}

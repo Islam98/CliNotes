@@ -22,17 +22,21 @@
     </div>
     <div class="top-bar-right">
       <div class="settings-btn"><i class="uil uil-setting"></i></div>
-      <div class="profile-avatar">S</div>
+      <div class="profile-avatar"></div>
     </div>
   </nav>
 
   <main class="dashboard-container">
     <section class="welcome-section">
       <div class="welcome-left">
-        <h1 class="greeting">Hello, Sarah</h1>
+        <h1 class="greeting">Loading...</h1>
         <p class="subtext">Here’s a summary of your recent health activity</p>
       </div>
       <div class="welcome-right">
+        <button class="patient-card-btn" id="viewPatientCardBtn">
+          <i class="uil uil-qrcode-scan"></i>
+          Patient Card
+        </button>
         <button class="book-btn" id="bookConsultationBtn">
           <i class="uil uil-calendar-plus"></i>
           Book Consultation
@@ -133,6 +137,16 @@
         <button class="close-btn" id="closeTranscriptModalBtn"><i class="uil uil-times"></i></button>
       </div>
       <div class="modal-body transcript-body" id="transcriptContent"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay hidden" id="patientCardModal">
+    <div class="modal-content patient-card-modal">
+      <div class="modal-header">
+        <h3>Patient Card</h3>
+        <button class="close-btn" id="closePatientCardModalBtn"><i class="uil uil-times"></i></button>
+      </div>
+      <div class="modal-body patient-card-body" id="patientCardContent"></div>
     </div>
   </div>
   

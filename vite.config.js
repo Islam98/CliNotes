@@ -10,6 +10,7 @@ export default defineConfig({
         patient: resolve(__dirname, 'patient.html'),
         patientProfile: resolve(__dirname, 'patient-profile.html'),
         labs: resolve(__dirname, 'labs.html'),
+        testapp: resolve(__dirname, 'testapp.html'),
       },
     },
   },

@@ -2,6 +2,7 @@ import { api } from './api.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const state = {
+    profile: null,
     consultations: [],
     selectedConsultation: null,
     doctors: [],
@@ -17,6 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const actionsRequiredList = document.getElementById('actionsRequiredList');
   const docList = document.querySelector('.doc-list');
   const bookBtn = document.getElementById('bookConsultationBtn');
+  const viewPatientCardBtn = document.getElementById('viewPatientCardBtn');
   const bookingModal = document.getElementById('bookingModal');
   const closeBookingModalBtn = document.getElementById('closeBookingModalBtn');
   const cancelBookingModalBtn = document.getElementById('cancelBookingModalBtn');
@@ -31,6 +33,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const transcriptModal = document.getElementById('transcriptModal');
   const closeTranscriptModalBtn = document.getElementById('closeTranscriptModalBtn');
   const transcriptContent = document.getElementById('transcriptContent');
+  const patientCardModal = document.getElementById('patientCardModal');
+  const closePatientCardModalBtn = document.getElementById('closePatientCardModalBtn');
+  const patientCardContent = document.getElementById('patientCardContent');
 
   try {
     const session = await api.auth.getSession();
@@ -59,9 +64,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       api.data.getAvailableDoctors()
     ]);
 
-    state.consultations = consultations || [];
+    state.consultations = (consultations || []).filter(consultation => consultation.status === 'reviewed');
     state.selectedConsultation = state.consultations[0] || null;
     state.doctors = doctors || [];
+    state.profile = profile;
 
     renderHeader(profile);
     renderStats(state.consultations, bookings || []);
@@ -100,6 +106,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const summary = cons.ai_summary?.[0] || null;
     const structured = summary?.structured_data || {};
     const title = structured.title || 'Consultation';
+    const patientSummary = getPatientFriendlySummary(structured);
     const date = new Date(cons.date_time).toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' });
     const doctor = cons.doctor?.name ? `Dr. ${cons.doctor.name}` : 'Doctor';
 
@@ -112,7 +119,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
           <span class="status-pill ${escapeHtml(cons.status)}">${escapeHtml(formatStatus(cons.status))}</span>
         </div>
-        <p class="last-summary-text">${escapeHtml(truncateText(summary?.summary_text || 'Your doctor has not posted a summary for this visit yet.', 150))}</p>
+        <p class="last-summary-text">${escapeHtml(truncateText(patientSummary.what_was_discussed || summary?.summary_text || 'Your doctor has not posted a summary for this visit yet.', 150))}</p>
       </div>
     `;
   }
@@ -127,40 +134,45 @@ document.addEventListener('DOMContentLoaded', async () => {
     viewTranscriptBtn.disabled = false;
     const summary = cons.ai_summary?.[0] || null;
     const structured = summary?.structured_data || {};
+    const patientSummary = getPatientFriendlySummary(structured);
+
+    detailsContent.innerHTML = `
+      <div class="patient-summary-grid">
+        ${patientSummaryTile('uil-comment-medical', 'What you came for', patientSummary.what_you_came_for)}
+        ${patientSummaryTile('uil-comments', 'What was discussed', patientSummary.what_was_discussed)}
+        ${patientSummaryTile('uil-stethoscope', 'What the doctor found', patientSummary.what_the_doctor_found)}
+        ${patientSummaryTile('uil-arrow-circle-right', 'What happens next', patientSummary.what_happens_next)}
+      </div>
+    `;
+  }
+
+  function getPatientFriendlySummary(structured) {
+    const patientSummary = structured.patient_summary || structured.patientSummary || {};
     const subjective = structured.subjective || {};
     const objective = structured.objective || {};
     const assessment = structured.assessment || {};
-    const planItems = normalizePlanItems(structured.plan);
     const diagnoses = Array.isArray(assessment.diagnoses)
       ? assessment.diagnoses
       : [assessment.diagnoses].filter(Boolean);
+    const planItems = normalizePlanItems(structured.plan);
 
-    detailsContent.innerHTML = `
-      <div class="detail-grid">
-        ${detailTile('Came in for', subjective.chief_complaint || 'Not specified')}
-        ${detailTile('Doctor found', objective.examination || formatVitals(objective.vitals) || 'Not recorded')}
-      </div>
-      ${diagnoses.length ? `
-        <div class="compact-section">
-          <span class="compact-label">Assessment</span>
-          <div class="chip-row">
-            ${diagnoses.slice(0, 4).map(item => `<span class="info-chip">${escapeHtml(item)}</span>`).join('')}
-          </div>
+    return {
+      what_you_came_for: patientSummary.what_you_came_for || subjective.chief_complaint || 'The main reason for this visit was not clearly recorded.',
+      what_was_discussed: patientSummary.what_was_discussed || subjective.history || 'Your doctor reviewed your symptoms and health concerns during the visit.',
+      what_the_doctor_found: patientSummary.what_the_doctor_found || objective.examination || objective.physical_exam || formatVitals(objective.vitals) || diagnoses.join(', ') || 'No specific findings were recorded in the final note.',
+      what_happens_next: patientSummary.what_happens_next || planItems.map(item => item.value).filter(Boolean).slice(0, 2).join(' ') || 'No specific next steps were recorded yet.'
+    };
+  }
+
+  function patientSummaryTile(icon, label, text) {
+    return `
+      <section class="patient-summary-tile">
+        <div class="patient-summary-icon"><i class="uil ${icon}"></i></div>
+        <div>
+          <h3>${escapeHtml(label)}</h3>
+          <p>${escapeHtml(text || 'Not recorded.')}</p>
         </div>
-      ` : ''}
-      <div class="compact-section">
-        <span class="compact-label">Plan</span>
-        ${planItems.length ? `
-          <div class="plan-strip">
-            ${planItems.slice(0, 3).map(item => `
-              <div class="plan-pill">
-                <strong>${escapeHtml(item.label)}</strong>
-                <span>${escapeHtml(truncateText(item.value, 72))}</span>
-              </div>
-            `).join('')}
-          </div>
-        ` : '<p class="details-empty">No next steps recorded yet.</p>'}
-      </div>
+      </section>
     `;
   }
 
@@ -249,6 +261,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   bookBtn.addEventListener('click', openBookingModal);
+  viewPatientCardBtn.addEventListener('click', openPatientCardModal);
   closeBookingModalBtn.addEventListener('click', closeBookingModal);
   cancelBookingModalBtn.addEventListener('click', closeBookingModal);
   bookingModal.addEventListener('click', event => {
@@ -301,6 +314,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (event.target === transcriptModal) transcriptModal.classList.add('hidden');
   });
 
+  closePatientCardModalBtn.addEventListener('click', () => patientCardModal.classList.add('hidden'));
+  patientCardModal.addEventListener('click', event => {
+    if (event.target === patientCardModal) patientCardModal.classList.add('hidden');
+  });
+
   document.querySelectorAll('.doc-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('.doc-tab').forEach(item => item.classList.remove('active'));
@@ -329,6 +347,77 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (state.booking.step === 3) renderConfirmStep();
   }
 
+  function openPatientCardModal() {
+    const profile = state.profile;
+    if (!profile?.id) {
+      alert('Patient profile is not available yet.');
+      return;
+    }
+
+    const name = profile.name || 'Patient';
+    const qrValue = profile.id;
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=12&data=${encodeURIComponent(qrValue)}`;
+
+    patientCardContent.innerHTML = `
+      <div class="patient-pass">
+        <div class="patient-pass-header">
+          <div>
+            <span>CliNotes</span>
+            <h2>${escapeHtml(name)}</h2>
+          </div>
+          <div class="patient-pass-mark">CN</div>
+        </div>
+        <div class="patient-pass-label">
+          <span>Patient Card</span>
+          <strong>Scan before consultation</strong>
+        </div>
+        <div class="patient-pass-qr">
+          <img src="${qrUrl}" alt="QR code for ${escapeHtml(name)}">
+        </div>
+      </div>
+      <div class="wallet-actions">
+        <button class="wallet-btn apple-wallet-btn" id="addAppleWalletBtn">
+          <i class="uil uil-apple"></i>
+          Add to Apple Wallet
+        </button>
+        <button class="wallet-btn google-wallet-btn" id="addGoogleWalletBtn" disabled title="Google Wallet support is not available through the current WalletWallet API.">
+          <i class="uil uil-google"></i>
+          Add to Google Wallet
+        </button>
+      </div>
+      <p class="wallet-note">Doctors scan this QR code before recording a consultation.</p>
+    `;
+
+    patientCardModal.classList.remove('hidden');
+
+    document.getElementById('addAppleWalletBtn').addEventListener('click', async () => {
+      await downloadAppleWalletPass(profile);
+    });
+  }
+
+  async function downloadAppleWalletPass(profile) {
+    const button = document.getElementById('addAppleWalletBtn');
+    const original = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="uil uil-spinner-alt uil-spin"></i> Creating pass...';
+
+    try {
+      const blob = await api.data.createPatientAppleWalletPass(profile.id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'clinotes-patient-card.pkpass';
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Apple Wallet pass failed:', err);
+      alert(err.message || 'Could not create Apple Wallet pass.');
+    } finally {
+      button.disabled = false;
+      button.innerHTML = original;
+    }
+  }
+
   function renderSpecialtyStep() {
     const specialties = getSpecialties();
 
@@ -352,7 +441,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       card.addEventListener('click', () => {
         state.booking.specialty = card.dataset.specialty;
         state.booking.doctorId = '';
+        state.booking.date = '';
         state.booking.slot = '';
+        state.booking.bookedSlots = [];
+        state.booking.loadedAvailabilityKey = '';
         renderBookingStep();
       });
     });
@@ -382,7 +474,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     bookingStepContent.querySelectorAll('.doctor-card').forEach(card => {
       card.addEventListener('click', () => {
         state.booking.doctorId = card.dataset.doctorId;
+        state.booking.date = '';
         state.booking.slot = '';
+        state.booking.bookedSlots = [];
+        state.booking.loadedAvailabilityKey = '';
         renderBookingStep();
       });
     });
@@ -390,25 +485,49 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function renderSlotStep() {
     const doctor = getSelectedDoctor();
+    if (doctor && !state.booking.date) {
+      state.booking.date = getDateInputValue(new Date());
+    }
+
+    const availabilityKey = doctor && state.booking.date ? `${doctor.id}:${state.booking.date}` : '';
+    const isLoadingSlots = availabilityKey && state.booking.loadedAvailabilityKey !== availabilityKey;
+    if (isLoadingSlots) {
+      loadBookedSlotsForSelection(availabilityKey);
+    }
+
     const slots = generateSlots(doctor);
 
     bookingStepContent.innerHTML = `
       <div class="booking-step-copy">
-        <strong>Choose a free slot</strong>
-        <span>${doctor ? escapeHtml(`Dr. ${doctor.name}`) : 'Select a doctor first'}</span>
+        <strong>Choose a day and time</strong>
+        <span>${doctor ? escapeHtml(`Dr. ${doctor.name} • one-hour slots from 09:00 to 17:00`) : 'Select a doctor first'}</span>
+      </div>
+      <div class="date-picker-row">
+        <label class="form-label" for="bookingDate">Consultation date</label>
+        <input id="bookingDate" class="form-control" type="date" min="${getDateInputValue(new Date())}" value="${escapeHtml(state.booking.date)}">
       </div>
       <div class="slot-grid">
-        ${slots.map(slot => `
-          <button type="button" class="slot-card ${state.booking.slot === slot.value ? 'selected' : ''}" data-slot="${slot.value}">
-            <strong>${escapeHtml(slot.day)}</strong>
-            <span>${escapeHtml(slot.time)}</span>
+        ${isLoadingSlots ? '<p class="empty-text">Checking availability...</p>' : slots.map(slot => `
+          <button type="button" class="slot-card ${state.booking.slot === slot.value ? 'selected' : ''}" data-slot="${slot.value}" ${slot.booked ? 'disabled' : ''}>
+            <strong>${escapeHtml(slot.time)}</strong>
+            <span>${slot.booked ? 'Booked' : 'Available'}</span>
           </button>
         `).join('')}
       </div>
     `;
 
+    const dateInput = document.getElementById('bookingDate');
+    dateInput.addEventListener('change', () => {
+      state.booking.date = dateInput.value;
+      state.booking.slot = '';
+      state.booking.bookedSlots = [];
+      state.booking.loadedAvailabilityKey = '';
+      renderBookingStep();
+    });
+
     bookingStepContent.querySelectorAll('.slot-card').forEach(card => {
       card.addEventListener('click', () => {
+        if (card.disabled) return;
         state.booking.slot = card.dataset.slot;
         renderBookingStep();
       });
@@ -486,8 +605,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     state.booking.specialty = getDoctorSpecialty(doctor);
     state.booking.doctorId = doctor.id;
-    state.booking.slot = generateSlots(doctor)[0]?.value || '';
-    state.booking.step = 3;
+    state.booking.date = getDateInputValue(new Date());
+    state.booking.slot = '';
+    state.booking.step = 2;
   }
 
   function getSpecialties() {
@@ -519,28 +639,43 @@ document.addEventListener('DOMContentLoaded', async () => {
   function generateSlots(doctor) {
     if (!doctor) return [];
     const slots = [];
-    const hours = [9, 11, 14, 16];
-    const cursor = new Date();
-    cursor.setDate(cursor.getDate() + 1);
+    if (!state.booking.date) return slots;
 
-    while (slots.length < 8) {
-      const day = cursor.getDay();
-      if (day !== 0 && day !== 6) {
-        hours.forEach(hour => {
-          if (slots.length >= 8) return;
-          const slot = new Date(cursor);
-          slot.setHours(hour, 0, 0, 0);
-          slots.push({
-            value: slot.toISOString(),
-            day: slot.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }),
-            time: slot.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          });
-        });
-      }
-      cursor.setDate(cursor.getDate() + 1);
+    const bookedTimes = new Set((state.booking.bookedSlots || []).map(value => {
+      const date = new Date(value);
+      return `${String(date.getHours()).padStart(2, '0')}:00`;
+    }));
+
+    for (let hour = 9; hour < 17; hour++) {
+      const slot = new Date(`${state.booking.date}T${String(hour).padStart(2, '0')}:00:00`);
+      const time = `${String(hour).padStart(2, '0')}:00`;
+      slots.push({
+        value: slot.toISOString(),
+        time,
+        booked: bookedTimes.has(time) || slot < new Date()
+      });
     }
 
     return slots;
+  }
+
+  async function loadBookedSlotsForSelection(availabilityKey) {
+    const doctor = getSelectedDoctor();
+    const date = state.booking.date;
+    if (!doctor || !date) return;
+
+    state.booking.loadedAvailabilityKey = availabilityKey;
+    try {
+      state.booking.bookedSlots = await api.data.getDoctorBookedSlots(doctor.id, date);
+    } catch (err) {
+      console.error('Failed to load booked slots:', err);
+      state.booking.bookedSlots = [];
+      alert('Could not load booked slots for this date.');
+    } finally {
+      if (state.booking.step === 2 && state.booking.doctorId === doctor.id && state.booking.date === date) {
+        renderBookingStep();
+      }
+    }
   }
 
   function getEmptyBookingState() {
@@ -548,9 +683,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       step: 0,
       specialty: '',
       doctorId: '',
+      date: '',
       slot: '',
-      reason: ''
+      reason: '',
+      bookedSlots: [],
+      loadedAvailabilityKey: ''
     };
+  }
+
+  function getDateInputValue(date) {
+    const value = new Date(date);
+    value.setMinutes(value.getMinutes() - value.getTimezoneOffset());
+    return value.toISOString().slice(0, 10);
   }
 
   function detailTile(label, text) {

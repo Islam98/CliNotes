@@ -32,6 +32,7 @@ if (geminiApiKey && geminiApiKey !== 'your_gemini_api_key_here') {
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const walletWalletApiKey = process.env.WALLETWALLET_API_KEY;
 let supabaseAdmin;
 if (supabaseUrl && supabaseServiceKey && supabaseServiceKey !== 'your_supabase_service_role_key_here') {
   supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
@@ -201,6 +202,119 @@ async function cleanupSoniox(transcriptionId, fileId) {
   try {
     if (fileId) await sonioxFetch(`/v1/files/${fileId}`, { method: 'DELETE' });
   } catch (e) { console.warn('Failed to delete Soniox file:', e.message); }
+}
+
+async function runTestAudioPipeline(audioBuffer, { filename, transcriptionConfig, analyze }) {
+  let sonioxFileId = null;
+  let sonioxTranscriptionId = null;
+
+  try {
+    const uploadResult = await uploadToSoniox(audioBuffer, filename);
+    sonioxFileId = uploadResult.id;
+
+    const transcription = await createTranscription(transcriptionConfig(sonioxFileId));
+    sonioxTranscriptionId = transcription.id;
+
+    const completedMeta = await waitForTranscription(sonioxTranscriptionId);
+    const transcriptResult = await getTranscript(sonioxTranscriptionId);
+    const plainText = transcriptResult.text || '';
+    const markdownText = renderTranscriptMarkdown(transcriptResult.tokens || [], completedMeta);
+
+    const aiResult = plainText.trim().length > 10
+      ? await analyze(plainText)
+      : { summary_text: 'No usable speech was detected.', structured_data: {} };
+
+    await cleanupSoniox(sonioxTranscriptionId, sonioxFileId);
+
+    return {
+      transcript_text: plainText,
+      transcript_markdown: markdownText,
+      soniox_meta: {
+        duration_ms: completedMeta.audio_duration_ms || null,
+        transcription_id: sonioxTranscriptionId,
+      },
+      analysis_json: aiResult,
+    };
+  } catch (error) {
+    await cleanupSoniox(sonioxTranscriptionId, sonioxFileId);
+    throw error;
+  }
+}
+
+function normalizePlanItemsForDisplay(plan) {
+  if (!plan) return [];
+  if (Array.isArray(plan)) {
+    return plan.map(item => ({
+      label: item.label || item.type || 'Plan',
+      value: item.value || item.description || item
+    })).filter(item => item.value);
+  }
+
+  return Object.entries(plan).flatMap(([key, value]) => {
+    const values = Array.isArray(value) ? value : [value];
+    return values.filter(Boolean).map(item => ({
+      label: key.replace(/_/g, ' '),
+      value: item
+    }));
+  });
+}
+
+function buildDoctorSoapDisplay(aiResult) {
+  const structured = aiResult?.structured_data || {};
+  const subjective = structured.subjective || {};
+  const objective = structured.objective || {};
+  const assessment = structured.assessment || {};
+
+  return {
+    title: structured.title || 'Clinical Consultation Draft',
+    summary: aiResult?.summary_text || '',
+    subjective: {
+      chief_complaint: subjective.chief_complaint || '',
+      history: subjective.history || '',
+      allergies: Array.isArray(subjective.allergies) ? subjective.allergies.join(', ') : subjective.allergies || '',
+      notes: subjective.notes || '',
+    },
+    objective: {
+      vitals: typeof objective.vitals === 'object' ? objective.vitals : { notes: objective.vitals || '' },
+      examination: objective.examination || objective.physical_exam || '',
+    },
+    assessment: {
+      diagnoses: Array.isArray(assessment.diagnoses) ? assessment.diagnoses : [assessment.diagnoses].filter(Boolean),
+      reasoning: assessment.reasoning || '',
+    },
+    plan: normalizePlanItemsForDisplay(structured.plan),
+  };
+}
+
+function buildPatientDisplay(aiResult) {
+  const structured = aiResult?.structured_data || {};
+  const patientSummary = structured.patient_summary || {};
+  const subjective = structured.subjective || {};
+  const objective = structured.objective || {};
+  const assessment = structured.assessment || {};
+  const diagnoses = Array.isArray(assessment.diagnoses) ? assessment.diagnoses : [assessment.diagnoses].filter(Boolean);
+  const plan = normalizePlanItemsForDisplay(structured.plan);
+
+  return {
+    title: structured.title || 'Your Consultation',
+    what_you_came_for: patientSummary.what_you_came_for || subjective.chief_complaint || '',
+    what_was_discussed: patientSummary.what_was_discussed || subjective.history || aiResult?.summary_text || '',
+    what_the_doctor_found: patientSummary.what_the_doctor_found || objective.examination || objective.physical_exam || diagnoses.join(', '),
+    what_happens_next: patientSummary.what_happens_next || plan.map(item => item.value).join(' '),
+  };
+}
+
+function buildLabDoctorDisplay(aiResult, participants = []) {
+  const structured = aiResult?.structured_data || {};
+  return {
+    title: structured.title || 'Internal Doctor Discussion',
+    participants,
+    summary: aiResult?.summary_text || '',
+    prominent_points: structured.prominent_points || [],
+    decisions: structured.decisions || [],
+    open_questions: structured.open_questions || [],
+    action_plan: structured.action_plan || [],
+  };
 }
 
 // ==========================================
@@ -378,10 +492,16 @@ Please analyze the provided text and output a JSON object with the following str
       { "label": "Medication", "value": "Prescribed medication details" },
       { "label": "Test", "value": "Lab or imaging orders" },
       { "label": "Follow-up", "value": "When to return" }
-    ]
+    ],
+    "patient_summary": {
+      "what_you_came_for": "One short sentence in simple patient-friendly language.",
+      "what_was_discussed": "One to two short sentences explaining what was talked about.",
+      "what_the_doctor_found": "One to two short sentences explaining findings without unnecessary jargon.",
+      "what_happens_next": "One to two short sentences explaining the next steps clearly."
+    }
   }
 }
-If any specific fields are not mentioned in the transcript, omit them or leave them as null/empty strings.
+For patient_summary, use plain language suitable for the patient, preserve the facts from the transcript, avoid jargon where possible, and do not add new diagnoses, test results, or instructions that were not discussed. If any specific fields are not mentioned in the transcript, omit them or leave them as null/empty strings.
 Ensure the output is strictly valid JSON and nothing else.
 `;
 
@@ -434,6 +554,36 @@ Do not invent facts. If an item is not mentioned, use an empty array.
   return JSON.parse(response.response.text());
 }
 
+async function generatePatientSummaryWithGemini(structuredData) {
+  if (!gemini) {
+    throw new Error("Gemini API key is missing or invalid on the server.");
+  }
+
+  const systemPrompt = `
+You are a patient-friendly clinical explainer. Convert an approved doctor's structured note into simple language for the patient.
+Return strictly valid JSON with this shape:
+{
+  "what_you_came_for": "One short sentence.",
+  "what_was_discussed": "One to two short sentences.",
+  "what_the_doctor_found": "One to two short sentences.",
+  "what_happens_next": "One to two short sentences."
+}
+Use only facts present in the structured note. Do not add new diagnoses, results, or instructions. Avoid jargon and keep the tone calm and clear.
+`;
+
+  const model = gemini.getGenerativeModel({
+    model: "gemini-2.5-flash",
+    systemInstruction: systemPrompt,
+    generationConfig: {
+      temperature: 0.2,
+      responseMimeType: "application/json",
+    }
+  });
+
+  const response = await model.generateContent(JSON.stringify(structuredData || {}));
+  return JSON.parse(response.response.text());
+}
+
 // ─── Existing: Analyze Transcript Endpoint ───
 app.post('/api/analyze-transcript', async (req, res) => {
   const { transcriptText } = req.body;
@@ -447,6 +597,104 @@ app.post('/api/analyze-transcript', async (req, res) => {
   } catch (error) {
     console.error("Error analyzing transcript:", error);
     res.status(500).json({ error: error.message || "Failed to analyze transcript." });
+  }
+});
+
+app.post('/api/patient-summary', async (req, res) => {
+  if (!supabaseAdmin) {
+    return res.status(500).json({ error: 'Supabase admin client is not configured.' });
+  }
+
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication is required.' });
+  }
+
+  try {
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
+    if (userError || !userData.user) {
+      return res.status(401).json({ error: 'Invalid session.' });
+    }
+
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .select('role')
+      .eq('id', userData.user.id)
+      .single();
+
+    if (profileError || profile?.role !== 'doctor') {
+      return res.status(403).json({ error: 'Only doctors can generate patient summaries.' });
+    }
+
+    const summary = await generatePatientSummaryWithGemini(req.body?.structuredData || {});
+    res.json(summary);
+  } catch (error) {
+    res.status(500).json({ error: error.message || 'Failed to generate patient summary.' });
+  }
+});
+
+app.post('/api/test/consultation', express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '50mb' }), async (req, res) => {
+  if (!SONIOX_API_KEY || SONIOX_API_KEY === 'your_soniox_api_key_here') {
+    return res.status(500).json({ error: 'Soniox API key is not configured on the server.' });
+  }
+  if (!gemini) {
+    return res.status(500).json({ error: 'Gemini API key is not configured on the server.' });
+  }
+  if (!req.body || !Buffer.isBuffer(req.body)) {
+    return res.status(400).json({ error: 'No audio data received.' });
+  }
+
+  try {
+    const result = await runTestAudioPipeline(req.body, {
+      filename: `test-consultation-${Date.now()}.webm`,
+      transcriptionConfig: fileId => buildTranscriptionConfig(fileId),
+      analyze: analyzeTranscriptWithGemini,
+    });
+
+    res.json({
+      mode: 'doctor_patient_consultation_test',
+      ...result,
+      doctor_display: buildDoctorSoapDisplay(result.analysis_json),
+      patient_display: buildPatientDisplay(result.analysis_json),
+    });
+  } catch (error) {
+    console.error('[TestApp] Consultation test failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/test/lab-discussion', express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '50mb' }), async (req, res) => {
+  if (!SONIOX_API_KEY || SONIOX_API_KEY === 'your_soniox_api_key_here') {
+    return res.status(500).json({ error: 'Soniox API key is not configured on the server.' });
+  }
+  if (!gemini) {
+    return res.status(500).json({ error: 'Gemini API key is not configured on the server.' });
+  }
+  if (!req.body || !Buffer.isBuffer(req.body)) {
+    return res.status(400).json({ error: 'No audio data received.' });
+  }
+
+  const participants = String(req.query.participants || '')
+    .split(',')
+    .map(name => name.trim())
+    .filter(Boolean)
+    .map(name => ({ name }));
+
+  try {
+    const result = await runTestAudioPipeline(req.body, {
+      filename: `test-lab-discussion-${Date.now()}.webm`,
+      transcriptionConfig: fileId => buildLabDiscussionTranscriptionConfig(fileId, participants),
+      analyze: analyzeLabDiscussionWithGemini,
+    });
+
+    res.json({
+      mode: 'doctor_discussion_test',
+      ...result,
+      doctor_display: buildLabDoctorDisplay(result.analysis_json, participants.map(p => p.name)),
+    });
+  } catch (error) {
+    console.error('[TestApp] Lab discussion test failed:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -984,6 +1232,127 @@ app.post('/api/labs/discussions/:discussionId/approve', async (req, res) => {
     }
 
     res.json({ ...data.discussion, approved_at: data.approved_at });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/patients/:patientId/apple-wallet-pass', async (req, res) => {
+  if (!supabaseAdmin) {
+    return res.status(500).json({ error: 'Supabase admin client is not configured.' });
+  }
+  if (!walletWalletApiKey) {
+    return res.status(501).json({ error: 'WALLETWALLET_API_KEY is not configured on the server.' });
+  }
+
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication is required.' });
+  }
+
+  try {
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
+    if (userError || !userData.user) {
+      return res.status(401).json({ error: 'Invalid session.' });
+    }
+
+    const patientId = req.params.patientId;
+    if (userData.user.id !== patientId) {
+      return res.status(403).json({ error: 'You can only create your own patient card.' });
+    }
+
+    const { data: patient, error: patientError } = await supabaseAdmin
+      .from('patient_profile')
+      .select('id, name, age, gender')
+      .eq('id', patientId)
+      .single();
+
+    if (patientError || !patient) {
+      return res.status(404).json({ error: 'Patient profile was not found.' });
+    }
+
+    const walletResponse = await fetch('https://api.walletwallet.dev/api/pkpass', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${walletWalletApiKey}`,
+      },
+      body: JSON.stringify({
+        barcodeValue: patient.id,
+        barcodeFormat: 'QR',
+        logoText: 'CliNotes',
+        description: `CliNotes patient card for ${patient.name || 'Patient'}`,
+        organizationName: 'CliNotes',
+        primaryFields: [{ label: 'PATIENT', value: patient.name || 'Patient' }],
+        secondaryFields: [
+          { label: 'CARD', value: 'Patient Card' },
+          { label: 'USE', value: 'Scan before visit' },
+        ],
+        backFields: [
+          { label: 'Use', value: 'Show this card to your doctor before a recorded consultation.' },
+        ],
+        colorPreset: 'blue',
+        expirationDays: 3650,
+      }),
+    });
+
+    if (!walletResponse.ok) {
+      let message = 'WalletWallet pass creation failed.';
+      try {
+        const errorBody = await walletResponse.json();
+        message = errorBody.error || message;
+      } catch {
+        message = await walletResponse.text();
+      }
+      return res.status(walletResponse.status).json({ error: message });
+    }
+
+    const passBuffer = Buffer.from(await walletResponse.arrayBuffer());
+    res.setHeader('Content-Type', 'application/vnd.apple.pkpass');
+    res.setHeader('Content-Disposition', 'attachment; filename="clinotes-patient-card.pkpass"');
+    const serial = walletResponse.headers.get('X-Serial-Number');
+    if (serial) res.setHeader('X-Serial-Number', serial);
+    res.send(passBuffer);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/doctors/:doctorId/booked-slots', async (req, res) => {
+  if (!supabaseAdmin) {
+    return res.status(500).json({ error: 'Supabase admin client is not configured.' });
+  }
+
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication is required.' });
+  }
+
+  try {
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
+    if (userError || !userData.user) {
+      return res.status(401).json({ error: 'Invalid session.' });
+    }
+
+    const date = req.query.date;
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ error: 'A YYYY-MM-DD date is required.' });
+    }
+
+    const start = new Date(`${date}T00:00:00.000Z`);
+    const end = new Date(`${date}T23:59:59.999Z`);
+
+    const { data, error } = await supabaseAdmin
+      .from('booking')
+      .select('appointment_time')
+      .eq('doctor_id', req.params.doctorId)
+      .eq('status', 'scheduled')
+      .gte('appointment_time', start.toISOString())
+      .lte('appointment_time', end.toISOString());
+
+    if (error) throw error;
+
+    res.json((data || []).map(row => row.appointment_time));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

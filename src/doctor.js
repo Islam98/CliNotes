@@ -472,18 +472,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
 
       document.querySelectorAll('.start-from-schedule-btn').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
+        btn.addEventListener('click', (e) => {
           e.stopPropagation();
           const ptId = e.target.closest('.start-from-schedule-btn').getAttribute('data-id');
-          // Update booking status to completed
-          try {
-            await api.data.updateBookingStatus(ptId, 'completed');
-          } catch(err) {
-            console.error("Failed to complete booking", err);
-          }
-          
-          openModal();
-          handleSuccessfulPatientSelection(ptId);
+          openModal({ expectedPatientId: ptId });
         });
       });
 
@@ -655,17 +647,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   let html5QrCodeScanner = null;
   let scannedPatientId = null;
+  let expectedPatientId = null;
 
-  function openModal() {
+  function normalizePatientQrValue(value) {
+    const raw = String(value || '').trim();
+    if (raw === 'PT-9999') return '99999999-9999-9999-9999-999999999999';
+    if (raw.startsWith('clinotes:patient:')) return raw.replace('clinotes:patient:', '').trim();
+    return raw;
+  }
+
+  function openModal(options = {}) {
     patientModal.classList.remove('hidden');
     document.getElementById('qr-reader').style.display = 'block';
-    const manualEntry = document.getElementById('manual-patient-entry');
-    if (manualEntry) manualEntry.style.display = 'block';
     
     document.getElementById('qr-success').classList.add('hidden');
     document.getElementById('modalFooter').classList.add('hidden');
     document.getElementById('patientModalContent').style.backgroundColor = 'white';
+    document.getElementById('scannedPatientName').innerText = options.expectedPatientId
+      ? 'Scan the scheduled patient card'
+      : 'Patient Identified';
     scannedPatientId = null;
+    expectedPatientId = options.expectedPatientId || null;
 
     if (window.Html5QrcodeScanner) {
       if (!html5QrCodeScanner) {
@@ -685,30 +687,34 @@ document.addEventListener('DOMContentLoaded', async () => {
           // parse errors ignore
         }
       );
+    } else {
+      alert('QR scanner library is unavailable. Please refresh and try again.');
     }
   }
 
   function handleSuccessfulPatientSelection(patientIdStr) {
-    scannedPatientId = patientIdStr;
+    const normalizedPatientId = normalizePatientQrValue(patientIdStr);
+
+    if (expectedPatientId && normalizedPatientId !== expectedPatientId) {
+      alert('This QR card does not match the scheduled patient. Please scan the correct patient card.');
+      scannedPatientId = null;
+      return;
+    }
+
+    scannedPatientId = normalizedPatientId;
     if (html5QrCodeScanner) {
       try { html5QrCodeScanner.clear(); } catch(e) {}
     }
     
     document.getElementById('qr-reader').style.display = 'none';
-    document.getElementById('manual-patient-entry').style.display = 'none';
     document.getElementById('qr-success').classList.remove('hidden');
     document.getElementById('modalFooter').classList.remove('hidden');
     document.getElementById('patientModalContent').style.backgroundColor = '#ECFDF5';
     
-    let queryId = patientIdStr;
-    if (queryId === 'PT-9999') {
-       queryId = '99999999-9999-9999-9999-999999999999';
-    }
-
     document.getElementById('scannedPatientName').innerText = "Loading...";
     supabase.from('patient_profile')
       .select('name')
-      .eq('id', queryId)
+      .eq('id', normalizedPatientId)
       .single()
       .then(({data, error}) => {
         if (data && data.name) {
@@ -721,21 +727,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
   }
 
-  // Wire up manual patient ID input
-  const manualSubmitBtn = document.getElementById('manualPatientSubmitBtn');
-  const manualInput = document.getElementById('manualPatientIdInput');
-  if (manualSubmitBtn && manualInput) {
-    manualSubmitBtn.addEventListener('click', () => {
-      const val = manualInput.value.trim();
-      if (val.length >= 4) {
-        handleSuccessfulPatientSelection(val);
-      }
-    });
-  }
-
   function closeModal() {
     patientModal.classList.add('hidden');
     scannedPatientId = null;
+    expectedPatientId = null;
     if (html5QrCodeScanner) {
       try {
         html5QrCodeScanner.clear();
@@ -744,7 +739,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   if (startBtn && patientModal) {
-    startBtn.addEventListener('click', openModal);
+    startBtn.addEventListener('click', () => openModal());
     closeModalBtn.addEventListener('click', closeModal);
 
     patientModal.addEventListener('click', (e) => {
@@ -755,12 +750,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!scannedPatientId) return;
       let finalPatientId = scannedPatientId;
       
-      // Temporary override for testing mock patient
-      if (finalPatientId === 'PT-9999') {
-        finalPatientId = '99999999-9999-9999-9999-999999999999';
-      }
-      
       try {
+        if (expectedPatientId) {
+          await api.data.updateBookingStatus(finalPatientId, 'completed');
+        }
         const newCons = await api.data.createConsultation(finalPatientId);
         currentConsultationId = newCons.id;
         await loadDoctorData();
@@ -1025,6 +1018,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         currentReviewData.plan = currentReviewData.plan || {};
         currentReviewData.plan.treatment = getArr('review_tx');
         currentReviewData.plan.follow_up = getVal('review_fu');
+
+        if (!currentReviewData.patient_summary) {
+          try {
+            currentReviewData.patient_summary = await api.data.generatePatientSummary(currentReviewData);
+          } catch (summaryErr) {
+            console.warn('Patient-friendly summary generation failed:', summaryErr);
+          }
+        }
         
         // Save to DB
         await api.data.updateAISummary(consultationId, currentReviewData);

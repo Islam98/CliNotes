@@ -224,6 +224,20 @@ export const api = {
       if (error) throw error;
       return data;
     },
+
+    async getDoctorBookedSlots(doctorId, date) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not authenticated");
+
+      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const response = await fetch(`${serverUrl}/api/doctors/${doctorId}/booked-slots?date=${encodeURIComponent(date)}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not load booked slots.');
+      return data;
+    },
     
     /**
      * Create a new consultation
@@ -481,6 +495,25 @@ export const api = {
       return data;
     },
 
+    async generatePatientSummary(structuredData) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not authenticated");
+
+      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const response = await fetch(`${serverUrl}/api/patient-summary`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ structuredData }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not generate patient summary.');
+      return data;
+    },
+
     /**
      * Delete consultation completely
      */
@@ -571,6 +604,28 @@ export const api = {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not approve lab discussion.');
       return data;
+    },
+
+    async createPatientAppleWalletPass(patientId) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not authenticated");
+
+      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const response = await fetch(`${serverUrl}/api/patients/${patientId}/apple-wallet-pass`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      if (!response.ok) {
+        let message = 'Could not create Apple Wallet pass.';
+        try {
+          const data = await response.json();
+          message = data.error || message;
+        } catch {}
+        throw new Error(message);
+      }
+
+      return response.blob();
     }
   }
 };

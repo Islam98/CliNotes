@@ -83,6 +83,7 @@ stopBtn.addEventListener('click', () => {
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     recordingStatus.innerText = 'Saving and processing discussion';
     stopBtn.disabled = true;
+    stopBtn.innerHTML = '<i class="uil uil-spinner-alt uil-spin"></i> Processing...';
     mediaRecorder.stop();
   }
 });
@@ -99,7 +100,8 @@ async function processDiscussion(audioBlob) {
     recordingPanel.classList.add('hidden');
     startBtn.disabled = false;
     stopBtn.disabled = false;
-    recordingStatus.innerText = 'Recording discussion';
+    stopBtn.innerHTML = '<i class="uil uil-stop-circle"></i> Stop & Process';
+    recordingStatus.innerText = 'Recording lab discussion';
     currentDiscussionId = null;
   }
 }

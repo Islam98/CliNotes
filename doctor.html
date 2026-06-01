@@ -196,15 +196,6 @@
         <div class="modal-body" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 250px;">
           <!-- QR Scanner Container -->
           <div id="qr-reader" style="width: 100%; max-width: 400px; border-radius: 12px; overflow: hidden; margin-bottom: 16px;"></div>
-          
-          <!-- Manual Patient ID Input for Testing -->
-          <div id="manual-patient-entry" style="width: 100%; max-width: 400px; margin-bottom: 16px; text-align: center;">
-            <p style="margin-bottom: 8px; font-size: 14px; color: #64748b;">Or enter Patient ID manually (Testing):</p>
-            <div style="display: flex; gap: 8px;">
-              <input type="text" id="manualPatientIdInput" placeholder="Enter UUID (e.g. 99999999-...)" style="flex: 1; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px;" />
-              <button id="manualPatientSubmitBtn" class="primary-btn" style="padding: 10px 16px; font-size: 14px;">Confirm</button>
-            </div>
-          </div>
 
           <!-- Success State -->
           <div id="qr-success" class="hidden" style="text-align: center; padding: 24px;">
@@ -220,16 +211,19 @@
 
     <!-- ACTIVE RECORDING OVERLAY -->
     <div id="recordingOverlay" class="recording-overlay hidden">
-      <div class="recording-status">
-        <div class="recording-indicator pulsing"></div>
-        <span class="recording-time" id="recordingTimer">00:00</span>
+      <div class="recording-primary">
+        <div class="recording-indicator"></div>
+        <div>
+          <span class="recording-kicker">Recording consultation</span>
+          <strong class="recording-time" id="recordingTimer">00:00</strong>
+        </div>
       </div>
       <div class="recording-actions">
         <button class="record-action-btn highlight-btn" id="overlayHighlightBtn">
-          <i class="uil uil-star"></i> Highlight Key Moment
+          <i class="uil uil-star"></i> Highlight
         </button>
         <button class="record-action-btn note-btn" id="overlayNoteBtn">
-          <i class="uil uil-edit"></i> Add Manual Note
+          <i class="uil uil-edit"></i> Note
         </button>
         <button class="record-action-btn stop-btn" id="overlayStopBtn">
           <i class="uil uil-stop-circle"></i> Stop Recording
