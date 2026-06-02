@@ -23,6 +23,8 @@ const els = {
   recordingTimer: document.getElementById('recordingTimer'),
   startRecordBtn: document.getElementById('startRecordBtn'),
   stopRecordBtn: document.getElementById('stopRecordBtn'),
+  uploadConsultationLabel: document.getElementById('uploadConsultationLabel'),
+  uploadConsultationInput: document.getElementById('uploadConsultationInput'),
   diagnosticsList: document.getElementById('diagnosticsList'),
   outputContent: document.getElementById('outputContent'),
   outputSubtitle: document.getElementById('outputSubtitle'),
@@ -52,6 +54,7 @@ els.mockDoctorsInput.addEventListener('keydown', event => {
 });
 els.startRecordBtn.addEventListener('click', startRecording);
 els.stopRecordBtn.addEventListener('click', stopRecording);
+els.uploadConsultationInput.addEventListener('change', handleConsultationUpload);
 
 function setMode(mode) {
   if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') return;
@@ -67,6 +70,7 @@ function renderMode() {
   els.consultationModeBtn.classList.toggle('inactive', isLabs);
   els.labsModeBtn.classList.toggle('inactive', !isLabs);
   els.labsFields.classList.toggle('hidden', !isLabs);
+  els.uploadConsultationLabel.classList.toggle('hidden', isLabs);
   els.modeTitle.textContent = isLabs ? 'Doctor Discussion Test' : 'Doctor Consultation Test';
   els.modeSubtitle.textContent = isLabs
     ? 'Add mock doctor names, record an internal discussion, and inspect the report that would be sent to participating doctors.'
@@ -84,8 +88,22 @@ function addMockDoctor() {
 
 function renderMockDoctors() {
   els.mockDoctorList.innerHTML = state.mockDoctors
-    .map(name => `<span>${escapeHtml(name)}</span>`)
+    .map(name => `
+      <span>
+        ${escapeHtml(name)}
+        <button type="button" class="remove-mock-doctor-btn" data-name="${escapeHtml(name)}" aria-label="Remove ${escapeHtml(name)}">
+          <i class="uil uil-times"></i>
+        </button>
+      </span>
+    `)
     .join('');
+
+  els.mockDoctorList.querySelectorAll('.remove-mock-doctor-btn').forEach(button => {
+    button.addEventListener('click', () => {
+      state.mockDoctors = state.mockDoctors.filter(name => name !== button.dataset.name);
+      renderMockDoctors();
+    });
+  });
 }
 
 async function startRecording() {
@@ -118,6 +136,27 @@ async function startRecording() {
     alert('Microphone access is required for this test.');
     console.error(error);
   }
+}
+
+async function handleConsultationUpload(event) {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+
+  if (state.mode !== 'consultation') {
+    alert('Audio upload is currently available for patient consultation testing only.');
+    return;
+  }
+
+  els.recordingLabel.textContent = 'Uploaded audio selected';
+  els.recordingTimer.textContent = '--:--';
+  els.startRecordBtn.disabled = true;
+  els.stopRecordBtn.disabled = true;
+  els.uploadConsultationLabel.classList.add('disabled');
+
+  await runPipeline(file);
+  els.recordingTimer.textContent = '00:00';
+  els.uploadConsultationLabel.classList.remove('disabled');
 }
 
 function stopRecording() {
@@ -198,22 +237,7 @@ function renderConsultationOutput(result) {
   return `
     <section class="output-section">
       <h3>Doctor SOAP Draft</h3>
-      <div class="soap-grid">
-        ${tile('Subjective', [
-          doctor.subjective?.chief_complaint,
-          doctor.subjective?.history,
-          doctor.subjective?.allergies ? `Allergies: ${doctor.subjective.allergies}` : ''
-        ].filter(Boolean).join(' '))}
-        ${tile('Objective', [
-          formatVitals(doctor.objective?.vitals),
-          doctor.objective?.examination
-        ].filter(Boolean).join(' '))}
-        ${tile('Assessment', [
-          (doctor.assessment?.diagnoses || []).join(', '),
-          doctor.assessment?.reasoning
-        ].filter(Boolean).join(' '))}
-        ${tile('Plan', (doctor.plan || []).map(item => `${item.label}: ${item.value}`).join(' '))}
-      </div>
+      ${renderDoctorSoapDraft(doctor)}
     </section>
     <section class="output-section">
       <h3>Patient-Side Simple Language</h3>
@@ -253,9 +277,51 @@ function renderJsonAndTranscript(result) {
       <pre class="output-json">${escapeHtml(JSON.stringify(result.analysis_json || {}, null, 2))}</pre>
     </section>
     <section class="output-section">
-      <h3>Soniox Transcript</h3>
-      <pre class="transcript-box">${escapeHtml(result.transcript_text || 'No transcript returned.')}</pre>
+      <h3>Transcript</h3>
+      <pre class="transcript-box" dir="auto">${escapeHtml(result.transcript_text || 'No transcript returned.')}</pre>
     </section>
+  `;
+}
+
+function renderDoctorSoapDraft(doctor) {
+  const treatment = (doctor.plan || [])
+    .filter(item => !String(item.label || '').toLowerCase().includes('follow'))
+    .map(item => `${item.label}: ${item.value}`)
+    .join('\n');
+  const followUp = (doctor.plan || [])
+    .find(item => String(item.label || '').toLowerCase().includes('follow'))?.value || '';
+
+  return `
+    <div class="doctor-soap-draft">
+      <div class="soap-title">${escapeHtml(doctor.title || 'Clinical Consultation Draft')}</div>
+      <div class="soap-columns">
+        <div class="soap-column">
+          <h4>Subjective</h4>
+          ${soapField('Chief Complaint', doctor.subjective?.chief_complaint)}
+          ${soapField('Medical History', doctor.subjective?.history)}
+          ${soapField('Allergies', doctor.subjective?.allergies)}
+          <h4>Objective</h4>
+          ${soapField('Vitals', formatVitals(doctor.objective?.vitals))}
+          ${soapField('Physical Exam', doctor.objective?.examination)}
+        </div>
+        <div class="soap-column">
+          <h4>Assessment</h4>
+          ${soapField('Diagnoses', (doctor.assessment?.diagnoses || []).join(', '))}
+          <h4>Plan</h4>
+          ${soapField('Treatment', treatment)}
+          ${soapField('Follow Up', followUp)}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function soapField(label, value) {
+  return `
+    <div class="soap-field">
+      <label>${escapeHtml(label)}</label>
+      <div>${escapeHtml(value || '')}</div>
+    </div>
   `;
 }
 

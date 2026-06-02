@@ -223,11 +223,13 @@ async function runTestAudioPipeline(audioBuffer, { filename, transcriptionConfig
     const aiResult = plainText.trim().length > 10
       ? await analyze(plainText)
       : { summary_text: 'No usable speech was detected.', structured_data: {} };
+    const cleanedText = getCleanedTranscript(aiResult, plainText);
 
     await cleanupSoniox(sonioxTranscriptionId, sonioxFileId);
 
     return {
-      transcript_text: plainText,
+      raw_transcript_text: plainText,
+      transcript_text: cleanedText,
       transcript_markdown: markdownText,
       soniox_meta: {
         duration_ms: completedMeta.audio_duration_ms || null,
@@ -284,6 +286,45 @@ function buildDoctorSoapDisplay(aiResult) {
     },
     plan: normalizePlanItemsForDisplay(structured.plan),
   };
+}
+
+function getCleanedTranscript(aiResult, fallbackText = '') {
+  return normalizeMixedTranscriptForDisplay(aiResult?.structured_data?.cleaned_transcript || aiResult?.cleaned_transcript || fallbackText || '');
+}
+
+function normalizeMixedTranscriptForDisplay(text) {
+  const value = String(text || '');
+  const terms = [
+    'HbA1c', 'A1C', 'CBC', 'CT', 'MRI', 'X-ray', 'ECG', 'EKG', 'TSH', 'LFT', 'AST', 'ALT',
+    'D-dimer', 'troponin', 'creatinine', 'cholesterol', 'ultrasound', 'diabetes',
+    'hypertension', 'metformin', 'lisinopril', 'amlodipine', 'paracetamol', 'ibuprofen'
+  ];
+
+  return value.split('\n').map(line => {
+    if (!/[\u0600-\u06FF]/.test(line)) return line;
+    return terms.reduce((current, term) => {
+      const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const pattern = new RegExp(`(?<!\\[)\\b(${escaped})\\b(?!\\])`, 'gi');
+      return current.replace(pattern, '[$1]');
+    }, line);
+  }).join('\n');
+}
+
+function buildCleanTranscriptMarkdown(cleanedText, transcriptionMeta = {}) {
+  const date = new Date().toLocaleDateString('en-US', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+  });
+  const lines = ['# Clinical Consultation Transcript', '', `**Date:** ${date}`];
+
+  if (transcriptionMeta.audio_duration_ms) {
+    const durationSec = Math.round(transcriptionMeta.audio_duration_ms / 1000);
+    const mins = Math.floor(durationSec / 60);
+    const secs = durationSec % 60;
+    lines.push(`**Duration:** ${mins}m ${secs}s`);
+  }
+
+  lines.push('', '---', '', cleanedText || 'No transcript text available.', '', '---', '*Cleaned by Gemini from Soniox transcript • CliNotes*');
+  return lines.join('\n');
 }
 
 function buildPatientDisplay(aiResult) {
@@ -498,9 +539,11 @@ Please analyze the provided text and output a JSON object with the following str
       "what_was_discussed": "One to two short sentences explaining what was talked about.",
       "what_the_doctor_found": "One to two short sentences explaining findings without unnecessary jargon.",
       "what_happens_next": "One to two short sentences explaining the next steps clearly."
-    }
+    },
+    "cleaned_transcript": "The same transcript text, lightly cleaned. Correct ambiguous medical terms and preserve English medical terminology in Latin letters inside Arabic text."
   }
 }
+For cleaned_transcript: keep the transcript meaning, order, speakers if obvious, and wording as close as possible to the Soniox transcript. Do not summarize. Do not add facts. Only correct obvious transcription mistakes, especially English medical terminology that was mistakenly written phonetically or in Arabic alphabet inside Arabic speech. Examples: "سي تي" -> "[CT]", "ام ار اي" -> "[MRI]", "اتش بي اي ون سي" -> "[HbA1c]", "كرياتينين" -> "[creatinine]" when it is clearly the medical term. Preserve Arabic sentences as Arabic. When an English medical term appears inside an Arabic sentence, write it in Latin letters inside square brackets to prevent mixed-direction display issues.
 For patient_summary, use plain language suitable for the patient, preserve the facts from the transcript, avoid jargon where possible, and do not add new diagnoses, test results, or instructions that were not discussed. If any specific fields are not mentioned in the transcript, omit them or leave them as null/empty strings.
 Ensure the output is strictly valid JSON and nothing else.
 `;
@@ -535,9 +578,11 @@ The discussion may include Arabic-English code switching. Return strictly valid 
     "open_questions": ["uncertainties or items needing more review"],
     "action_plan": [
       { "label": "Action", "owner": "Doctor/team if mentioned", "value": "What should happen next" }
-    ]
+    ],
+    "cleaned_transcript": "The same transcript text, lightly cleaned. Correct ambiguous medical terms and preserve English medical terminology in Latin letters inside Arabic text."
   }
 }
+For cleaned_transcript: keep the transcript meaning, order, speakers if obvious, and wording as close as possible to the Soniox transcript. Do not summarize. Do not add facts. Only correct obvious transcription mistakes, especially English lab/imaging/medical terminology that was mistakenly written phonetically or in Arabic alphabet inside Arabic speech. Examples: "سي بي سي" -> "[CBC]", "سي تي" -> "[CT]", "ام ار اي" -> "[MRI]", "اتش بي اي ون سي" -> "[HbA1c]", "دي دايمر" -> "[D-dimer]". Preserve Arabic sentences as Arabic. When an English medical term appears inside an Arabic sentence, write it in Latin letters inside square brackets to prevent mixed-direction display issues.
 Do not invent facts. If an item is not mentioned, use an empty array.
 `;
 
@@ -804,23 +849,16 @@ app.post('/api/transcribe', async (req, res) => {
 
         console.log(`[Transcribe] Transcript length: ${plainText.length} chars`);
 
-        // 8. Save to database
-        await supabaseAdmin
-          .from('transcript')
-          .update({
-            transcript_text: plainText,
-            transcript_markdown: markdownText,
-            status: 'completed',
-          })
-          .eq('id', transcriptRecord.id);
+        let cleanedText = plainText || '';
+        let cleanedMarkdown = markdownText;
 
-        console.log(`[Transcribe] ✓ Saved transcript for consultation ${consultationId}`);
-
-        // 9. Run Gemini Analysis automatically
+        // 8. Run Gemini Analysis automatically
         if (gemini && plainText.trim().length > 10) {
           console.log(`[Transcribe] Starting Gemini analysis for consultation ${consultationId}...`);
           try {
             const aiResult = await analyzeTranscriptWithGemini(plainText);
+            cleanedText = getCleanedTranscript(aiResult, plainText);
+            cleanedMarkdown = buildCleanTranscriptMarkdown(cleanedText, completedMeta);
 
             // Insert into ai_summary table
             const { error: aiError } = await supabaseAdmin
@@ -842,6 +880,18 @@ app.post('/api/transcribe', async (req, res) => {
             // We don't abort the whole flow, the transcript was already saved successfully.
           }
         }
+
+        // 9. Save cleaned transcript to database for display
+        await supabaseAdmin
+          .from('transcript')
+          .update({
+            transcript_text: cleanedText,
+            transcript_markdown: cleanedMarkdown,
+            status: 'completed',
+          })
+          .eq('id', transcriptRecord.id);
+
+        console.log(`[Transcribe] ✓ Saved cleaned transcript for consultation ${consultationId}`);
 
         // 10. Update consultation status to 'processed'
         await supabaseAdmin
@@ -1096,6 +1146,8 @@ app.post('/api/labs/discussions/:discussionId/transcribe', async (req, res) => {
         const transcriptResult = await getTranscript(sonioxTranscriptionId);
         const plainText = transcriptResult.text || '';
         const markdownText = renderTranscriptMarkdown(transcriptResult.tokens || [], completedMeta);
+        let cleanedText = plainText;
+        let cleanedMarkdown = markdownText;
 
         let aiResult = {
           summary_text: 'Discussion transcribed successfully.',
@@ -1104,13 +1156,15 @@ app.post('/api/labs/discussions/:discussionId/transcribe', async (req, res) => {
 
         if (gemini && plainText.trim().length > 10) {
           aiResult = await analyzeLabDiscussionWithGemini(plainText);
+          cleanedText = getCleanedTranscript(aiResult, plainText);
+          cleanedMarkdown = buildCleanTranscriptMarkdown(cleanedText, completedMeta);
         }
 
         await supabaseAdmin
           .from('lab_discussion')
           .update({
-            transcript_text: plainText,
-            transcript_markdown: markdownText,
+            transcript_text: cleanedText,
+            transcript_markdown: cleanedMarkdown,
             summary_text: aiResult.summary_text || 'Analysis completed.',
             structured_data: aiResult.structured_data || {},
             title: aiResult.structured_data?.title || discussion.title || 'Internal Clinical Discussion',

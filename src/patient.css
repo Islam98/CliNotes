@@ -941,6 +941,8 @@ body.patient-body {
   color: var(--text-dark);
   line-height: 1.6;
   white-space: pre-wrap;
+  direction: auto;
+  unicode-bidi: plaintext;
 }
 
 .patient-card-body {

@@ -41,9 +41,9 @@
 }
 
 .testapp-topbar p {
-  color: var(--text-secondary);
+  color: #FF0000;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 900;
 }
 
 .testapp-shell {
@@ -182,7 +182,8 @@
 
 .doctor-entry-row button,
 .record-start-btn,
-.record-stop-btn {
+.record-stop-btn,
+.record-upload-btn {
   border: none;
   border-radius: 12px;
   font-family: inherit;
@@ -210,9 +211,30 @@
   border-radius: 999px;
   background: #F3F4F6;
   color: var(--text-primary);
-  padding: 7px 10px;
+  padding: 6px 6px 6px 10px;
   font-size: 13px;
   font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.remove-mock-doctor-btn {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: #E5E7EB;
+  color: #4B5563;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.remove-mock-doctor-btn:hover {
+  background: #FEE2E2;
+  color: #991B1B;
 }
 
 .recording-console {
@@ -273,6 +295,26 @@
   background: #EF4444;
   color: #FFFFFF;
   min-height: 50px;
+}
+
+.record-upload-btn {
+  grid-column: span 2;
+  min-height: 48px;
+  background: #F3F4F6;
+  color: var(--primary-color);
+}
+
+.record-upload-btn:hover {
+  background: #E5E7EB;
+}
+
+.record-upload-btn.hidden {
+  display: none;
+}
+
+.record-upload-btn.disabled {
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 .record-start-btn:disabled,
@@ -337,6 +379,65 @@
   margin-bottom: 10px;
 }
 
+.doctor-soap-draft {
+  background: #F8FAFC;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.soap-title {
+  color: #0F172A;
+  font-size: 20px;
+  font-weight: 900;
+  margin-bottom: 16px;
+}
+
+.soap-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.soap-column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.soap-column h4 {
+  color: #3B82F6;
+  border-bottom: 2px solid #E2E8F0;
+  padding-bottom: 8px;
+  margin: 8px 0 4px;
+  font-size: 15px;
+}
+
+.soap-field {
+  margin-bottom: 8px;
+}
+
+.soap-field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 800;
+  color: #64748B;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+
+.soap-field div {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 15px;
+  color: #334155;
+  padding: 8px;
+  border-radius: 8px;
+  white-space: pre-wrap;
+}
+
 .soap-grid,
 .patient-language-grid,
 .lab-grid {
@@ -383,6 +484,8 @@
   background: #F8FAFC;
   color: var(--text-primary);
   border: 1px solid #E5E7EB;
+  direction: auto;
+  unicode-bidi: plaintext;
 }
 
 @keyframes recordPulse {
@@ -406,6 +509,7 @@
   }
 
   .recording-controls,
+  .soap-columns,
   .soap-grid,
   .patient-language-grid,
   .lab-grid {

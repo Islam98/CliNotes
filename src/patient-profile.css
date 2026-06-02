@@ -279,6 +279,8 @@
   margin: 8px 0 14px;
   padding: 12px 14px;
   white-space: pre-wrap;
+  direction: auto;
+  unicode-bidi: plaintext;
 }
 
 .profile-container {

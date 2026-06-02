@@ -831,6 +831,8 @@
 .lab-transcript-details p {
   margin-top: 12px;
   white-space: pre-wrap;
+  direction: auto;
+  unicode-bidi: plaintext;
 }
 
 /* RECORDING OVERLAY */
