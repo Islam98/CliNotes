@@ -142,7 +142,8 @@ export const api = {
         .select(`
           *,
           doctor:doctor_id(name, doctor_id),
-          patient:patient_id(name)
+          patient:patient_id(name),
+          ai_summary(summary_text, structured_data)
         `)
         .order('date_time', { ascending: false });
         
@@ -480,6 +481,26 @@ export const api = {
       return data;
     },
 
+    async createDoctorBooking(patientId, appointmentTime, reasonText = '') {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const { data, error } = await supabase
+        .from('booking')
+        .insert([{
+          doctor_id: user.id,
+          patient_id: patientId,
+          appointment_time: appointmentTime,
+          reason_text: reasonText,
+          status: 'scheduled'
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+
     /**
      * Update AI Summary structured_data
      */
@@ -603,6 +624,21 @@ export const api = {
 
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not approve lab discussion.');
+      return data;
+    },
+
+    async deleteLabDiscussion(discussionId) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not authenticated");
+
+      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const response = await fetch(`${serverUrl}/api/labs/discussions/${discussionId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not remove lab discussion.');
       return data;
     },
 

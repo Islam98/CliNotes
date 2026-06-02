@@ -120,22 +120,22 @@
           </div>
         </div>
 
-        <div class="card history-card col-6">
+        <div class="card lab-discussions-card col-6">
+          <div class="card-header">
+            <h3>Lab Discussions</h3>
+            <span class="section-hint">Reviewed internal discussions</span>
+          </div>
+          <div class="card-body list-body">
+            <!-- Lab discussions will be loaded via JS -->
+          </div>
+        </div>
+
+        <div class="card history-card col-12">
           <div class="card-header">
             <h3>Completed Consultations</h3>
           </div>
           <div class="card-body list-body">
             <!-- Session History will be loaded via JS -->
-          </div>
-        </div>
-
-        <div class="card lab-discussions-card col-12">
-          <div class="card-header">
-            <h3>Lab Discussions</h3>
-            <span class="section-hint">Reviewed internal doctor discussions</span>
-          </div>
-          <div class="card-body list-body">
-            <!-- Lab discussions will be loaded via JS -->
           </div>
         </div>
       </div>
@@ -182,6 +182,26 @@
         <div class="modal-footer lab-review-footer">
           <button class="text-btn" id="closeLabReviewFooterBtn"><i class="uil uil-arrow-left"></i> Back</button>
           <button class="primary-btn" id="approveLabReviewBtn"><i class="uil uil-check"></i> Approve Discussion</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RECOMMENDED ACTION MODAL -->
+    <div id="recommendedActionModal" class="modal-overlay hidden">
+      <div class="modal-content action-modal-content">
+        <div class="modal-header">
+          <h3 id="recommendedActionTitle">Recommended Action</h3>
+          <button class="close-btn" id="closeRecommendedActionModalBtn"><i class="uil uil-times"></i></button>
+        </div>
+        <div class="modal-body recommended-action-modal-body" id="recommendedActionContent">
+          <!-- Action draft populated via JS -->
+        </div>
+        <div class="modal-footer recommended-action-modal-footer">
+          <button class="cancel-btn" id="discardRecommendedActionBtn"><i class="uil uil-trash-alt"></i> Discard</button>
+          <div class="action-modal-controls">
+            <button class="secondary-btn" id="printRecommendedActionBtn"><i class="uil uil-print"></i> Print</button>
+            <button class="primary-btn" id="approveRecommendedActionBtn"><i class="uil uil-check"></i> Approve Action</button>
+          </div>
         </div>
       </div>
     </div>

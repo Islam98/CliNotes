@@ -88,6 +88,79 @@ document.addEventListener('DOMContentLoaded', async () => {
     return { icon: fallbackIcon, tone: 'general', title: 'Review recommended action' };
   }
 
+  function getGeneratedRecommendedActions(consultation) {
+    const structured = consultation.ai_summary?.[0]?.structured_data || {};
+    const actions = structured.recommended_actions || {};
+    const patientName = consultation.patient?.name || 'Unknown Patient';
+    const doctorName = consultation.doctor?.name || 'Doctor';
+    const date = new Date(consultation.date_time);
+    const base = {
+      consultationId: consultation.id,
+      patientId: consultation.patient_id,
+      patientName,
+      doctorName,
+      consultationDate: date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })
+    };
+
+    const statusOf = action => action?.status || 'pending';
+    const isPending = action => action?.needed && statusOf(action) === 'pending';
+    const result = [];
+
+    if (isPending(actions.follow_up)) {
+      result.push({
+        ...base,
+        type: 'follow_up',
+        key: 'follow_up',
+        icon: 'uil-calendar-alt',
+        tone: 'follow-up',
+        title: 'Book follow-up consultation',
+        detail: actions.follow_up.timing || actions.follow_up.reason || 'Follow-up recommended',
+        data: actions.follow_up
+      });
+    }
+
+    if (isPending(actions.prescription) && Array.isArray(actions.prescription.medications) && actions.prescription.medications.length) {
+      result.push({
+        ...base,
+        type: 'prescription',
+        key: 'prescription',
+        icon: 'uil-capsule',
+        tone: 'medication',
+        title: 'Review prescription draft',
+        detail: actions.prescription.medications.map(m => m.name).filter(Boolean).join(', ') || 'Medication draft ready',
+        data: actions.prescription
+      });
+    }
+
+    if (isPending(actions.lab_order) && Array.isArray(actions.lab_order.orders) && actions.lab_order.orders.length) {
+      result.push({
+        ...base,
+        type: 'lab_order',
+        key: 'lab_order',
+        icon: 'uil-flask',
+        tone: 'lab',
+        title: 'Review lab or imaging order',
+        detail: actions.lab_order.orders.map(o => o.name).filter(Boolean).join(', ') || 'Order draft ready',
+        data: actions.lab_order
+      });
+    }
+
+    if (isPending(actions.referral)) {
+      result.push({
+        ...base,
+        type: 'referral',
+        key: 'referral',
+        icon: 'uil-share-alt',
+        tone: 'referral',
+        title: 'Review referral draft',
+        detail: actions.referral.specialty || actions.referral.reason || 'Referral draft ready',
+        data: actions.referral
+      });
+    }
+
+    return result;
+  }
+
   function buildRecommendedActionRow({ icon, tone, title, detail, actionHtml = '' }) {
     return `
       <div class="recommended-action-row ${tone ? `action-${tone}` : ''}">
@@ -134,6 +207,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   let latestLabDiscussions = [];
+  let latestConsultations = [];
 
   async function renderPatientPreview(patientId, visitReason = '') {
     const preview = document.getElementById('patientPreviewContainer');
@@ -227,6 +301,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const bookings = await api.data.getBookings();
       const scheduledBookings = (bookings || []).filter(booking => booking.status === 'scheduled' && isToday(booking.appointment_time));
       const consultationList = consultations || [];
+      latestConsultations = consultationList;
 
       setMetric('scheduledCount', scheduledBookings.length);
       setMetric('processingCount', consultationList.filter(c => c.status === 'processing').length);
@@ -269,18 +344,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
         const ptName = cons.patient?.name || 'Unknown Patient';
 
-        if (cons.status === 'processed') {
-          if (recommendedActionsContainer && recommendedActionCount < 6) {
+        if ((cons.status === 'processed' || cons.status === 'reviewed') && recommendedActionsContainer && recommendedActionCount < 6) {
+          getGeneratedRecommendedActions(cons).forEach(action => {
+            if (recommendedActionCount >= 6) return;
             recommendedActionsContainer.innerHTML += buildRecommendedActionRow({
-              icon: 'uil-file-check-alt',
-              tone: 'review',
-              title: 'Review draft before actions',
-              detail: `${ptName} • AI note is ready`,
-              actionHtml: `<button class="text-btn review-btn" data-id="${cons.id}">Review</button>`
+              icon: action.icon,
+              tone: action.tone,
+              title: action.title,
+              detail: `${ptName} • ${String(action.detail)}`,
+              actionHtml: `
+                <button class="text-btn recommended-action-open-btn" data-consultation-id="${cons.id}" data-action-key="${action.key}">Open</button>
+                <button class="text-btn recommended-action-discard-btn" data-consultation-id="${cons.id}" data-action-key="${action.key}">Discard</button>
+              `
             });
             recommendedActionCount++;
-          }
+          });
+        }
 
+        if (cons.status === 'processed') {
           // Drafts - Ready
           draftsContainer.innerHTML += `
             <div class="list-row draft-row">
@@ -299,16 +380,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
           `;
         } else if (cons.status === 'processing') {
-          if (recommendedActionsContainer && recommendedActionCount < 6) {
-            recommendedActionsContainer.innerHTML += buildRecommendedActionRow({
-              icon: 'uil-sync',
-              tone: 'processing',
-              title: 'Waiting for recommendations',
-              detail: `${ptName} • transcription and analysis in progress`
-            });
-            recommendedActionCount++;
-          }
-
           // Drafts - Processing
           draftsContainer.innerHTML += `
             <div class="list-row draft-row">
@@ -329,23 +400,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
           `;
         } else if (cons.status === 'reviewed') {
-          if (recommendedActionsContainer && recommendedActionCount < 6) {
-            const structured = cons.ai_summary?.[0]?.structured_data || {};
-            const planItems = normalizePlanItems(structured.plan).slice(0, 2);
-            planItems.forEach(item => {
-              if (recommendedActionCount >= 6) return;
-              const meta = getRecommendedActionMeta(item.label, item.value);
-              recommendedActionsContainer.innerHTML += buildRecommendedActionRow({
-                icon: meta.icon,
-                tone: meta.tone,
-                title: meta.title,
-                detail: `${ptName} • ${String(item.value)}`,
-                actionHtml: `<button class="text-btn prepare-action-btn" data-patient-id="${cons.patient_id}" data-action="${escapeHtml(meta.title)}">Prepare</button>`
-              });
-              recommendedActionCount++;
-            });
-          }
-          
           // History
           historyContainer.innerHTML += `
              <div class="list-row history-row">
@@ -383,22 +437,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>
               </div>
               <div class="row-actions">
+                <button class="cancel-btn delete-lab-discussion-btn" data-id="${discussion.id}" title="Discard Lab Discussion"><i class="uil uil-times"></i></button>
                 <span class="badge status-ready">Ready for Review</span>
                 <button class="primary-btn lab-review-btn" data-id="${discussion.id}">Review</button>
               </div>
             </div>
           `;
-
-          if (recommendedActionsContainer && recommendedActionCount < 6) {
-            recommendedActionsContainer.innerHTML += buildRecommendedActionRow({
-              icon: 'uil-flask',
-              tone: 'lab',
-              title: 'Review lab discussion',
-              detail: `${title} • report ready`,
-              actionHtml: `<button class="text-btn lab-review-btn" data-id="${discussion.id}">Review</button>`
-            });
-            recommendedActionCount++;
-          }
         } else if (discussion.status === 'processing') {
           draftsContainer.innerHTML += `
             <div class="list-row draft-row lab-draft-row">
@@ -431,6 +475,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               </div>
               <div class="history-actions">
                 <button class="secondary-btn lab-review-btn" data-id="${discussion.id}"><i class="uil uil-file-search-alt"></i> View Report</button>
+                <button class="cancel-btn delete-lab-discussion-btn" data-id="${discussion.id}" title="Remove Lab Discussion"><i class="uil uil-trash-alt"></i></button>
               </div>
             </div>
           `;
@@ -495,6 +540,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
       });
 
+      document.querySelectorAll('.recommended-action-open-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const button = e.target.closest('.recommended-action-open-btn');
+          window.openRecommendedActionModal(button.dataset.consultationId, button.dataset.actionKey);
+        });
+      });
+
+      document.querySelectorAll('.recommended-action-discard-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const button = e.target.closest('.recommended-action-discard-btn');
+          if (!confirm('Discard this recommended action?')) return;
+          await updateRecommendedActionStatus(button.dataset.consultationId, button.dataset.actionKey, 'discarded');
+          await loadDoctorData();
+        });
+      });
+
       // AI Summary Review Modal Events
       document.querySelectorAll('.review-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -507,6 +570,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         btn.addEventListener('click', (e) => {
           const discussionId = e.target.closest('.lab-review-btn').getAttribute('data-id');
           window.openLabReviewModal(discussionId);
+        });
+      });
+
+      document.querySelectorAll('.delete-lab-discussion-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const discussionId = e.target.closest('.delete-lab-discussion-btn').getAttribute('data-id');
+          if (!confirm('Remove this internal lab discussion?')) return;
+          try {
+            await api.data.deleteLabDiscussion(discussionId);
+            await loadDoctorData();
+          } catch (err) {
+            console.error('Failed to remove lab discussion:', err);
+            alert('Could not remove lab discussion.');
+          }
         });
       });
 
@@ -960,10 +1038,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   const closeLabReviewFooterBtn = document.getElementById('closeLabReviewFooterBtn');
   const approveLabReviewBtn = document.getElementById('approveLabReviewBtn');
   const labReviewContent = document.getElementById('labReviewContent');
+  const recommendedActionModal = document.getElementById('recommendedActionModal');
+  const recommendedActionTitle = document.getElementById('recommendedActionTitle');
+  const recommendedActionContent = document.getElementById('recommendedActionContent');
+  const closeRecommendedActionModalBtn = document.getElementById('closeRecommendedActionModalBtn');
+  const discardRecommendedActionBtn = document.getElementById('discardRecommendedActionBtn');
+  const approveRecommendedActionBtn = document.getElementById('approveRecommendedActionBtn');
+  const printRecommendedActionBtn = document.getElementById('printRecommendedActionBtn');
   
   let currentReviewData = null;
   let isEditingReview = false;
   let currentLabDiscussionId = null;
+  let currentRecommendedAction = null;
   
   if (aiReviewModal) {
     closeReviewModalBtn.addEventListener('click', () => {
@@ -1123,6 +1209,450 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     labReviewModal.classList.remove('hidden');
+  };
+
+  function getConsultationById(consultationId) {
+    return latestConsultations.find(consultation => consultation.id === consultationId);
+  }
+
+  async function updateRecommendedActionStatus(consultationId, actionKey, status, extraData = {}) {
+    const consultation = getConsultationById(consultationId);
+    const structured = consultation?.ai_summary?.[0]?.structured_data;
+    if (!structured?.recommended_actions?.[actionKey]) throw new Error('Recommended action not found.');
+
+    structured.recommended_actions[actionKey] = {
+      ...structured.recommended_actions[actionKey],
+      ...extraData,
+      status
+    };
+
+    await api.data.updateAISummary(consultationId, structured);
+  }
+
+  function toDateTimeLocalValue(date) {
+    date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+    return date.toISOString().slice(0, 16);
+  }
+
+  function defaultFollowUpDateTime(timingText = '') {
+    const date = inferFollowUpDate(timingText);
+    date.setHours(9, 0, 0, 0);
+    return toDateTimeLocalValue(date);
+  }
+
+  function inferFollowUpDate(timingText = '') {
+    const text = String(timingText || '').toLowerCase();
+    const date = new Date();
+    date.setHours(9, 0, 0, 0);
+
+    const isoMatch = text.match(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/);
+    if (isoMatch) {
+      const parsed = new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]));
+      if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
+
+    const slashMatch = text.match(/\b(\d{1,2})[/-](\d{1,2})(?:[/-](20\d{2}))?\b/);
+    if (slashMatch) {
+      const year = slashMatch[3] ? Number(slashMatch[3]) : date.getFullYear();
+      const parsed = new Date(year, Number(slashMatch[2]) - 1, Number(slashMatch[1]));
+      if (!Number.isNaN(parsed.getTime()) && parsed >= startOfToday()) return parsed;
+    }
+
+    if (text.includes('tomorrow')) {
+      date.setDate(date.getDate() + 1);
+      return date;
+    }
+    if (text.includes('next week')) {
+      date.setDate(date.getDate() + 7);
+      return date;
+    }
+    if (text.includes('next month')) {
+      date.setMonth(date.getMonth() + 1);
+      return date;
+    }
+
+    const relativeMatch = text.match(/(?:in|after|within|خلال|بعد)?\s*(\d+|one|two|three|four|five|six|seven|eight|nine|ten|a|an)\s*(day|days|week|weeks|month|months|year|years|يوم|أيام|اسبوع|أسبوع|اسابيع|أسابيع|شهر|شهور|اشهر|أشهر|سنة|سنوات)/);
+    if (relativeMatch) {
+      const amount = parseNumberWord(relativeMatch[1]);
+      const unit = relativeMatch[2];
+      if (unit.includes('day') || unit.includes('يوم') || unit.includes('أيام')) {
+        date.setDate(date.getDate() + amount);
+      } else if (unit.includes('week') || unit.includes('اسبوع') || unit.includes('أسبوع')) {
+        date.setDate(date.getDate() + (amount * 7));
+      } else if (unit.includes('month') || unit.includes('شهر') || unit.includes('شهور') || unit.includes('اشهر') || unit.includes('أشهر')) {
+        date.setMonth(date.getMonth() + amount);
+      } else if (unit.includes('year') || unit.includes('سنة') || unit.includes('سنوات')) {
+        date.setFullYear(date.getFullYear() + amount);
+      }
+      return date;
+    }
+
+    date.setDate(date.getDate() + 7);
+    return date;
+  }
+
+  function parseNumberWord(value) {
+    const number = Number(value);
+    if (!Number.isNaN(number)) return number;
+    return {
+      a: 1,
+      an: 1,
+      one: 1,
+      two: 2,
+      three: 3,
+      four: 4,
+      five: 5,
+      six: 6,
+      seven: 7,
+      eight: 8,
+      nine: 9,
+      ten: 10
+    }[value] || 1;
+  }
+
+  function startOfToday() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  }
+
+  function actionField(label, value, name, rows = 1) {
+    const tag = rows > 1 ? 'textarea' : 'input';
+    const escaped = escapeHtml(value || '');
+    return `
+      <label class="action-form-field">
+        <span>${escapeHtml(label)}</span>
+        ${tag === 'textarea'
+          ? `<textarea data-action-field="${name}" rows="${rows}">${escaped}</textarea>`
+          : `<input data-action-field="${name}" value="${escaped}">`}
+      </label>
+    `;
+  }
+
+  function renderRecommendedActionForm(action) {
+    const data = action.data || {};
+    const meta = actionDocumentMeta(action);
+
+    if (action.type === 'follow_up') {
+      return `
+        <div class="followup-confirm-card">
+          <span>Automatic Follow-up</span>
+          <h2>${escapeHtml(action.patientName)}</h2>
+          <label>
+            <strong>Follow-up date and time</strong>
+            <input type="datetime-local" data-action-field="appointment_time" value="${defaultFollowUpDateTime(data.timing || data.reason)}">
+          </label>
+          <input type="hidden" data-action-field="reason" value="${escapeHtml(data.reason || 'Follow-up consultation')}">
+        </div>
+      `;
+    }
+
+    if (action.type === 'prescription') {
+      const medications = data.medications || [];
+      return `
+        <div class="action-document-shell prescription-shell">
+          ${actionDocumentHero('Prescription Draft', action.patientName, 'uil-capsule')}
+          ${meta}
+          <div class="action-table" data-action-list="medications">
+            <div class="action-table-head"><span>Medication</span><span>Dose</span><span>Frequency</span><span>Duration</span><span>Instructions</span></div>
+            ${medications.map((med, index) => `
+              <div class="action-table-row">
+                <input data-list-index="${index}" data-list-field="name" value="${escapeHtml(med.name || '')}">
+                <input data-list-index="${index}" data-list-field="dose" value="${escapeHtml(med.dose || '')}">
+                <input data-list-index="${index}" data-list-field="frequency" value="${escapeHtml(med.frequency || '')}">
+                <input data-list-index="${index}" data-list-field="duration" value="${escapeHtml(med.duration || '')}">
+                <input data-list-index="${index}" data-list-field="instructions" value="${escapeHtml(med.instructions || '')}">
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    if (action.type === 'lab_order') {
+      const orders = data.orders || [];
+      return `
+        <div class="action-document-shell lab-order-shell">
+          ${actionDocumentHero('Lab / Imaging Order', action.patientName, 'uil-flask')}
+          ${meta}
+          <div class="action-table" data-action-list="orders">
+            <div class="action-table-head lab-order-head"><span>Type</span><span>Order</span><span>Reason</span><span>Priority</span></div>
+            ${orders.map((order, index) => `
+              <div class="action-table-row lab-order-row">
+                <input data-list-index="${index}" data-list-field="type" value="${escapeHtml(order.type || '')}">
+                <input data-list-index="${index}" data-list-field="name" value="${escapeHtml(order.name || '')}">
+                <input data-list-index="${index}" data-list-field="reason" value="${escapeHtml(order.reason || '')}">
+                <input data-list-index="${index}" data-list-field="priority" value="${escapeHtml(order.priority || 'Routine')}">
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="action-document-shell referral-shell">
+        ${actionDocumentHero('Referral Draft', action.patientName, 'uil-share-alt')}
+        ${meta}
+        <div class="action-form-grid">
+          ${actionField('Referral Specialty', data.specialty, 'specialty')}
+          ${actionField('Reason', data.reason, 'reason', 3)}
+          ${actionField('Patient Debrief for Next Doctor', data.debrief, 'debrief', 5)}
+        </div>
+      </div>
+    `;
+  }
+
+  function actionDocumentHero(title, patientName, icon) {
+    return `
+      <div class="action-document-hero">
+        <div>
+          <span>${escapeHtml(title)}</span>
+          <h2>${escapeHtml(patientName)}</h2>
+        </div>
+        <div class="action-document-icon"><i class="uil ${icon}"></i></div>
+      </div>
+    `;
+  }
+
+  function actionDocumentMeta(action) {
+    return `
+      <div class="action-document-meta">
+        <div><span>Doctor</span><strong>${escapeHtml(action.doctorName)}</strong></div>
+        <div><span>Patient</span><strong>${escapeHtml(action.patientName)}</strong></div>
+        <div><span>Consultation Date</span><strong>${escapeHtml(action.consultationDate)}</strong></div>
+      </div>
+    `;
+  }
+
+  function collectRecommendedActionEdits(action) {
+    const content = recommendedActionContent;
+    if (action.type === 'prescription') {
+      return {
+        ...action.data,
+        medications: Array.from(content.querySelectorAll('.action-table-row')).map(row => ({
+          name: row.querySelector('[data-list-field="name"]')?.value || '',
+          dose: row.querySelector('[data-list-field="dose"]')?.value || '',
+          frequency: row.querySelector('[data-list-field="frequency"]')?.value || '',
+          duration: row.querySelector('[data-list-field="duration"]')?.value || '',
+          instructions: row.querySelector('[data-list-field="instructions"]')?.value || ''
+        })).filter(med => med.name)
+      };
+    }
+    if (action.type === 'lab_order') {
+      return {
+        ...action.data,
+        orders: Array.from(content.querySelectorAll('.action-table-row')).map(row => ({
+          type: row.querySelector('[data-list-field="type"]')?.value || '',
+          name: row.querySelector('[data-list-field="name"]')?.value || '',
+          reason: row.querySelector('[data-list-field="reason"]')?.value || '',
+          priority: row.querySelector('[data-list-field="priority"]')?.value || 'Routine'
+        })).filter(order => order.name)
+      };
+    }
+
+    const values = {};
+    content.querySelectorAll('[data-action-field]').forEach(input => {
+      values[input.dataset.actionField] = input.value;
+    });
+    return { ...action.data, ...values };
+  }
+
+  function printRecommendedAction(action, data) {
+    const title = action.title;
+    const theme = getRecommendedActionTheme(action.type);
+    const body = renderRecommendedActionPrintBody(action, data, theme);
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${escapeHtml(title)}</title>
+          <style>
+            * { box-sizing: border-box; }
+            body { font-family: Arial, sans-serif; margin: 0; padding: 36px; color: #111827; background: #FFFFFF; }
+            .print-page { min-height: calc(100vh - 72px); border: 1px solid #E5E7EB; border-radius: 18px; overflow: hidden; }
+            .print-header { display: flex; justify-content: space-between; gap: 24px; padding: 28px 32px; background: ${theme.soft}; border-bottom: 4px solid ${theme.color}; }
+            .brand { font-size: 13px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; color: ${theme.color}; }
+            h1 { margin: 8px 0 0; color: #111827; font-size: 30px; line-height: 1.1; }
+            .print-date { text-align: right; color: #374151; font-size: 13px; font-weight: 700; }
+            .print-body { padding: 28px 32px 32px; }
+            .meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 26px; }
+            .meta-item { border: 1px solid #E5E7EB; border-radius: 12px; padding: 13px 14px; background: #F9FAFB; }
+            .label { display: block; margin-bottom: 5px; color: #6B7280; font-size: 11px; text-transform: uppercase; font-weight: 800; letter-spacing: 0.04em; }
+            .value { display: block; color: #111827; font-size: 14px; font-weight: 800; }
+            table { width: 100%; border-collapse: collapse; margin: 12px 0 24px; table-layout: fixed; }
+            th { text-align: left; color: #374151; background: ${theme.soft}; border: 1px solid #D1D5DB; padding: 11px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+            td { border: 1px solid #D1D5DB; padding: 12px 10px; min-height: 42px; color: #111827; font-size: 13px; line-height: 1.45; vertical-align: top; word-break: break-word; }
+            .section { border: 1px solid #E5E7EB; border-radius: 14px; margin-bottom: 16px; overflow: hidden; }
+            .section h2 { margin: 0; padding: 12px 14px; background: ${theme.soft}; color: ${theme.color}; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; }
+            .section p { margin: 0; padding: 15px 16px; color: #111827; font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
+            .signature-row { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 40px; }
+            .signature-line { border-top: 1px solid #9CA3AF; padding-top: 10px; color: #4B5563; font-size: 12px; font-weight: 700; }
+            .footer-note { margin-top: 28px; padding-top: 14px; border-top: 1px solid #E5E7EB; color: #6B7280; font-size: 11px; line-height: 1.45; }
+            @media print {
+              body { padding: 0; }
+              .print-page { border: none; border-radius: 0; min-height: auto; }
+            }
+          </style>
+        </head>
+        <body>${body}</body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  }
+
+  function renderRecommendedActionPrintBody(action, data, theme) {
+    const printedAt = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+    return `
+      <main class="print-page">
+        <header class="print-header">
+          <div>
+            <div class="brand">CliNotes</div>
+            <h1>${escapeHtml(action.title)}</h1>
+          </div>
+          <div class="print-date">
+            <span class="label">Printed</span>
+            ${escapeHtml(printedAt)}
+          </div>
+        </header>
+        <section class="print-body">
+          <div class="meta-grid">
+            <div class="meta-item"><span class="label">Doctor</span><strong class="value">${escapeHtml(action.doctorName)}</strong></div>
+            <div class="meta-item"><span class="label">Patient</span><strong class="value">${escapeHtml(action.patientName)}</strong></div>
+            <div class="meta-item"><span class="label">Consultation Date</span><strong class="value">${escapeHtml(action.consultationDate)}</strong></div>
+          </div>
+          ${renderRecommendedActionPrintDetails(action, data)}
+          <div class="signature-row">
+            <div class="signature-line">Doctor signature</div>
+            <div class="signature-line">Clinic stamp / date</div>
+          </div>
+          <p class="footer-note">Generated from a reviewed CliNotes consultation draft. Please verify all clinical details before external use.</p>
+        </section>
+      </main>
+    `;
+  }
+
+  function renderRecommendedActionPrintDetails(action, data) {
+    if (action.type === 'prescription') {
+      const medications = Array.isArray(data.medications) ? data.medications : [];
+      return `
+        <table>
+          <thead><tr><th>Medication</th><th>Dose</th><th>Frequency</th><th>Duration</th><th>Instructions</th></tr></thead>
+          <tbody>
+            ${medications.map(med => `
+              <tr>
+                <td>${escapeHtml(med.name || '')}</td>
+                <td>${escapeHtml(med.dose || '')}</td>
+                <td>${escapeHtml(med.frequency || '')}</td>
+                <td>${escapeHtml(med.duration || '')}</td>
+                <td>${escapeHtml(med.instructions || '')}</td>
+              </tr>
+            `).join('') || '<tr><td colspan="5">No medications listed.</td></tr>'}
+          </tbody>
+        </table>
+      `;
+    }
+
+    if (action.type === 'lab_order') {
+      const orders = Array.isArray(data.orders) ? data.orders : [];
+      return `
+        <table>
+          <thead><tr><th>Type</th><th>Order</th><th>Reason</th><th>Priority</th></tr></thead>
+          <tbody>
+            ${orders.map(order => `
+              <tr>
+                <td>${escapeHtml(order.type || '')}</td>
+                <td>${escapeHtml(order.name || '')}</td>
+                <td>${escapeHtml(order.reason || '')}</td>
+                <td>${escapeHtml(order.priority || 'Routine')}</td>
+              </tr>
+            `).join('') || '<tr><td colspan="4">No orders listed.</td></tr>'}
+          </tbody>
+        </table>
+      `;
+    }
+
+    return `
+      <section class="section"><h2>Referral Specialty</h2><p>${escapeHtml(data.specialty || '')}</p></section>
+      <section class="section"><h2>Reason for Referral</h2><p>${escapeHtml(data.reason || '')}</p></section>
+      <section class="section"><h2>Patient Debrief for Next Doctor</h2><p>${escapeHtml(data.debrief || '')}</p></section>
+    `;
+  }
+
+  function getRecommendedActionTheme(type) {
+    return {
+      follow_up: { color: '#10B981', soft: '#ECFDF5', modalClass: 'followup-action-modal' },
+      prescription: { color: '#EA580C', soft: '#FFF7ED', modalClass: 'prescription-action-modal' },
+      lab_order: { color: '#2563EB', soft: '#EFF6FF', modalClass: 'lab-order-action-modal' },
+      referral: { color: '#BE185D', soft: '#FDF2F8', modalClass: 'referral-action-modal' }
+    }[type] || { color: '#2F6FED', soft: '#EFF6FF', modalClass: '' };
+  }
+
+  if (recommendedActionModal) {
+    const closeActionModal = () => {
+      recommendedActionModal.classList.add('hidden');
+      currentRecommendedAction = null;
+    };
+    closeRecommendedActionModalBtn?.addEventListener('click', closeActionModal);
+    recommendedActionModal.addEventListener('click', (event) => {
+      if (event.target === recommendedActionModal) closeActionModal();
+    });
+    printRecommendedActionBtn?.addEventListener('click', () => {
+      if (!currentRecommendedAction) return;
+      printRecommendedAction(currentRecommendedAction, collectRecommendedActionEdits(currentRecommendedAction));
+    });
+    discardRecommendedActionBtn?.addEventListener('click', async () => {
+      if (!currentRecommendedAction) return;
+      await updateRecommendedActionStatus(currentRecommendedAction.consultationId, currentRecommendedAction.key, 'discarded');
+      closeActionModal();
+      await loadDoctorData();
+    });
+    approveRecommendedActionBtn?.addEventListener('click', async () => {
+      if (!currentRecommendedAction) return;
+      const editedData = collectRecommendedActionEdits(currentRecommendedAction);
+      try {
+        approveRecommendedActionBtn.disabled = true;
+        if (currentRecommendedAction.type === 'follow_up') {
+          await api.data.createDoctorBooking(
+            currentRecommendedAction.patientId,
+            new Date(editedData.appointment_time || defaultFollowUpDateTime(currentRecommendedAction.data?.timing || currentRecommendedAction.data?.reason)).toISOString(),
+            editedData.reason || 'Follow-up consultation'
+          );
+        } else {
+          printRecommendedAction(currentRecommendedAction, editedData);
+        }
+        await updateRecommendedActionStatus(currentRecommendedAction.consultationId, currentRecommendedAction.key, 'approved', editedData);
+        closeActionModal();
+        await loadDoctorData();
+      } catch (err) {
+        console.error('Recommended action approval failed:', err);
+        alert(err.message || 'Could not approve recommended action.');
+      } finally {
+        approveRecommendedActionBtn.disabled = false;
+      }
+    });
+  }
+
+  window.openRecommendedActionModal = function(consultationId, actionKey) {
+    const consultation = getConsultationById(consultationId);
+    const action = getGeneratedRecommendedActions(consultation).find(item => item.key === actionKey);
+    if (!action || !recommendedActionModal || !recommendedActionContent) return;
+    currentRecommendedAction = action;
+    recommendedActionTitle.innerText = action.title;
+    recommendedActionContent.innerHTML = renderRecommendedActionForm(action);
+    const modalContent = recommendedActionModal.querySelector('.modal-content');
+    modalContent?.classList.remove('followup-action-modal', 'prescription-action-modal', 'lab-order-action-modal', 'referral-action-modal');
+    const theme = getRecommendedActionTheme(action.type);
+    if (theme.modalClass) modalContent?.classList.add(theme.modalClass);
+    printRecommendedActionBtn.classList.toggle('hidden', action.type === 'follow_up');
+    discardRecommendedActionBtn.classList.toggle('hidden', action.type === 'follow_up');
+    approveRecommendedActionBtn.innerHTML = action.type === 'follow_up'
+      ? '<i class="uil uil-calendar-alt"></i> Confirm Follow-up'
+      : '<i class="uil uil-check"></i> Approve & Print';
+    recommendedActionModal.classList.remove('hidden');
   };
 
   window.openReviewModal = async function(consultationId) {

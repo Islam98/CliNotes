@@ -534,6 +534,46 @@ Please analyze the provided text and output a JSON object with the following str
       { "label": "Test", "value": "Lab or imaging orders" },
       { "label": "Follow-up", "value": "When to return" }
     ],
+    "recommended_actions": {
+      "follow_up": {
+        "needed": true,
+        "timing": "When the follow-up should happen, e.g. in 2 weeks",
+        "reason": "Why follow-up is needed",
+        "status": "pending"
+      },
+      "prescription": {
+        "needed": true,
+        "medications": [
+          {
+            "name": "Medication name",
+            "dose": "Dose if mentioned",
+            "frequency": "How often to take it",
+            "duration": "How long to take it if mentioned",
+            "instructions": "Extra instructions if mentioned"
+          }
+        ],
+        "status": "pending"
+      },
+      "lab_order": {
+        "needed": true,
+        "orders": [
+          {
+            "type": "Lab | Imaging | Scan | Test",
+            "name": "Test, scan, or imaging name",
+            "reason": "Why it is needed",
+            "priority": "Routine | Urgent if mentioned"
+          }
+        ],
+        "status": "pending"
+      },
+      "referral": {
+        "needed": true,
+        "specialty": "Specialty to refer to",
+        "reason": "Why referral is needed",
+        "debrief": "Short debrief for the next doctor",
+        "status": "pending"
+      }
+    },
     "patient_summary": {
       "what_you_came_for": "One short sentence in simple patient-friendly language.",
       "what_was_discussed": "One to two short sentences explaining what was talked about.",
@@ -544,6 +584,7 @@ Please analyze the provided text and output a JSON object with the following str
   }
 }
 For cleaned_transcript: keep the transcript meaning, order, speakers if obvious, and wording as close as possible to the Soniox transcript. Do not summarize. Do not add facts. Only correct obvious transcription mistakes, especially English medical terminology that was mistakenly written phonetically or in Arabic alphabet inside Arabic speech. Examples: "سي تي" -> "[CT]", "ام ار اي" -> "[MRI]", "اتش بي اي ون سي" -> "[HbA1c]", "كرياتينين" -> "[creatinine]" when it is clearly the medical term. Preserve Arabic sentences as Arabic. When an English medical term appears inside an Arabic sentence, write it in Latin letters inside square brackets to prevent mixed-direction display issues.
+For recommended_actions: include only actions that are clearly supported by the transcript. If no action of a type was mentioned or implied, set needed to false and leave arrays empty. These four action types are the only allowed action types. Do not invent medications, tests, referrals, or follow-up timing.
 For patient_summary, use plain language suitable for the patient, preserve the facts from the transcript, avoid jargon where possible, and do not add new diagnoses, test results, or instructions that were not discussed. If any specific fields are not mentioned in the transcript, omit them or leave them as null/empty strings.
 Ensure the output is strictly valid JSON and nothing else.
 `;
@@ -1286,6 +1327,45 @@ app.post('/api/labs/discussions/:discussionId/approve', async (req, res) => {
     }
 
     res.json({ ...data.discussion, approved_at: data.approved_at });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/labs/discussions/:discussionId', async (req, res) => {
+  if (!supabaseAdmin) {
+    return res.status(500).json({ error: 'Supabase admin client is not configured.' });
+  }
+
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication is required.' });
+  }
+
+  try {
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
+    if (userError || !userData.user) {
+      return res.status(401).json({ error: 'Invalid session.' });
+    }
+
+    const { data: participant, error: participantError } = await supabaseAdmin
+      .from('lab_discussion_participant')
+      .select('id')
+      .eq('discussion_id', req.params.discussionId)
+      .eq('doctor_id', userData.user.id)
+      .single();
+
+    if (participantError || !participant) {
+      return res.status(404).json({ error: 'Lab discussion was not found for this doctor.' });
+    }
+
+    const { error } = await supabaseAdmin
+      .from('lab_discussion')
+      .delete()
+      .eq('id', req.params.discussionId);
+
+    if (error) throw error;
+    res.json({ ok: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
