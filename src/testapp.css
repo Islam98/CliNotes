@@ -467,6 +467,145 @@
   line-height: 1.45;
 }
 
+.recommended-actions-preview {
+  display: grid;
+  gap: 10px;
+}
+
+.test-recommended-action,
+.empty-recommended-actions {
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  background: #FFFFFF;
+  padding: 13px 14px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.test-recommended-action strong,
+.empty-recommended-actions strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.test-recommended-action p,
+.empty-recommended-actions p {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.recommended-action-icon,
+.empty-recommended-actions > i {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+}
+
+.action-follow-up {
+  border-color: #BBF7D0;
+  background: #ECFDF5;
+}
+
+.action-follow-up .recommended-action-icon {
+  background: #D1FAE5;
+  color: #047857;
+}
+
+.action-medication {
+  border-color: #FED7AA;
+  background: #FFF7ED;
+}
+
+.action-medication .recommended-action-icon {
+  background: #FFEDD5;
+  color: #C2410C;
+}
+
+.action-lab {
+  border-color: #BFDBFE;
+  background: #EFF6FF;
+}
+
+.action-lab .recommended-action-icon {
+  background: #DBEAFE;
+  color: #1D4ED8;
+}
+
+.action-referral {
+  border-color: #FBCFE8;
+  background: #FDF2F8;
+}
+
+.action-referral .recommended-action-icon {
+  background: #FCE7F3;
+  color: #BE185D;
+}
+
+.empty-recommended-actions {
+  background: #F8FAFC;
+}
+
+.empty-recommended-actions > i {
+  background: #E5E7EB;
+  color: #64748B;
+}
+
+.recommended-action-details {
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.recommended-action-details div {
+  border-top: 1px solid rgba(148, 163, 184, 0.35);
+  padding-top: 7px;
+}
+
+.recommended-action-details dt {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.recommended-action-details dd {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.print-test-action-btn {
+  margin-top: 12px;
+  border: none;
+  border-radius: 10px;
+  background: #FFFFFF;
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.45);
+  min-height: 36px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.print-test-action-btn:hover {
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(100, 116, 139, 0.7);
+}
+
 .output-json,
 .transcript-box {
   max-height: 340px;

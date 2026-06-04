@@ -6,6 +6,7 @@ const state = {
   seconds: 0,
   timer: null,
   mockDoctors: ['Dr. Omar Mah', 'Dr. Layla Hassan'],
+  lastRecommendedActions: [],
 };
 
 const els = {
@@ -55,6 +56,12 @@ els.mockDoctorsInput.addEventListener('keydown', event => {
 els.startRecordBtn.addEventListener('click', startRecording);
 els.stopRecordBtn.addEventListener('click', stopRecording);
 els.uploadConsultationInput.addEventListener('change', handleConsultationUpload);
+els.outputContent.addEventListener('click', event => {
+  const button = event.target.closest('.print-test-action-btn');
+  if (!button) return;
+  const action = state.lastRecommendedActions.find(item => item.key === button.dataset.actionKey);
+  if (action) printTestRecommendedAction(action);
+});
 
 function setMode(mode) {
   if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') return;
@@ -234,10 +241,16 @@ function renderOutput(result) {
 function renderConsultationOutput(result) {
   const doctor = result.doctor_display || {};
   const patient = result.patient_display || {};
+  const recommendedActions = extractRecommendedActions(result.analysis_json);
+  state.lastRecommendedActions = recommendedActions;
   return `
     <section class="output-section">
       <h3>Doctor SOAP Draft</h3>
       ${renderDoctorSoapDraft(doctor)}
+    </section>
+    <section class="output-section">
+      <h3>Recommended Actions</h3>
+      ${renderRecommendedActions(recommendedActions)}
     </section>
     <section class="output-section">
       <h3>Patient-Side Simple Language</h3>
@@ -249,6 +262,265 @@ function renderConsultationOutput(result) {
       </div>
     </section>
     ${renderJsonAndTranscript(result)}
+  `;
+}
+
+function extractRecommendedActions(analysisJson = {}) {
+  const structured = analysisJson.structured_data || analysisJson;
+  const actions = structured.recommended_actions || {};
+  const result = [];
+
+  if (actions.follow_up?.needed) {
+    result.push({
+      key: 'follow_up',
+      type: 'follow_up',
+      icon: 'uil-calendar-alt',
+      tone: 'follow-up',
+      title: 'Book follow-up consultation',
+      detail: actions.follow_up.timing || actions.follow_up.reason || 'Follow-up recommended',
+      data: actions.follow_up,
+      body: [
+        ['Timing', actions.follow_up.timing],
+        ['Reason', actions.follow_up.reason]
+      ]
+    });
+  }
+
+  if (actions.prescription?.needed) {
+    const medications = Array.isArray(actions.prescription.medications) ? actions.prescription.medications : [];
+    result.push({
+      key: 'prescription',
+      type: 'prescription',
+      icon: 'uil-capsule',
+      tone: 'medication',
+      title: 'Prescription draft',
+      detail: medications.map(med => med.name).filter(Boolean).join(', ') || 'Medication draft generated',
+      data: actions.prescription,
+      body: medications.map(med => [
+        med.name || 'Medication',
+        [med.dose, med.frequency, med.duration, med.instructions].filter(Boolean).join(' - ')
+      ])
+    });
+  }
+
+  if (actions.lab_order?.needed) {
+    const orders = Array.isArray(actions.lab_order.orders) ? actions.lab_order.orders : [];
+    result.push({
+      key: 'lab_order',
+      type: 'lab_order',
+      icon: 'uil-flask',
+      tone: 'lab',
+      title: 'Lab or imaging order',
+      detail: orders.map(order => order.name).filter(Boolean).join(', ') || 'Order draft generated',
+      data: actions.lab_order,
+      body: orders.map(order => [
+        order.name || 'Order',
+        [order.type, order.priority, order.reason].filter(Boolean).join(' - ')
+      ])
+    });
+  }
+
+  if (actions.referral?.needed) {
+    result.push({
+      key: 'referral',
+      type: 'referral',
+      icon: 'uil-share-alt',
+      tone: 'referral',
+      title: 'Referral draft',
+      detail: actions.referral.specialty || actions.referral.reason || 'Referral draft generated',
+      data: actions.referral,
+      body: [
+        ['Specialty', actions.referral.specialty],
+        ['Reason', actions.referral.reason],
+        ['Debrief', actions.referral.debrief]
+      ]
+    });
+  }
+
+  return result;
+}
+
+function renderRecommendedActions(actions) {
+  if (!actions.length) {
+    return `
+      <div class="recommended-actions-preview empty-recommended-actions">
+        <i class="uil uil-check-circle"></i>
+        <div>
+          <strong>No recommended actions generated</strong>
+          <p>Gemini did not return follow-up, prescription, lab order, or referral actions for this test consultation.</p>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="recommended-actions-preview">
+      ${actions.map(action => `
+        <article class="test-recommended-action action-${action.tone}">
+          <div class="recommended-action-icon"><i class="uil ${action.icon}"></i></div>
+          <div>
+            <strong>${escapeHtml(action.title)}</strong>
+            <p>${escapeHtml(action.detail)}</p>
+            ${renderRecommendedActionDetails(action.body)}
+            <button type="button" class="print-test-action-btn" data-action-key="${escapeHtml(action.key)}">
+              <i class="uil uil-print"></i> View printable version
+            </button>
+          </div>
+        </article>
+      `).join('')}
+    </div>
+  `;
+}
+
+function printTestRecommendedAction(action) {
+  const theme = getPrintTheme(action.type);
+  const printedAt = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+  const body = renderPrintableActionDetails(action);
+  const printWindow = window.open('', '_blank', 'width=900,height=700');
+  if (!printWindow) return;
+
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>${escapeHtml(action.title)}</title>
+        <style>
+          * { box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; margin: 0; padding: 36px; color: #111827; background: #FFFFFF; }
+          .print-page { min-height: calc(100vh - 72px); border: 1px solid #E5E7EB; border-radius: 18px; overflow: hidden; }
+          .print-header { display: flex; justify-content: space-between; gap: 24px; padding: 28px 32px; background: ${theme.soft}; border-bottom: 4px solid ${theme.color}; }
+          .brand { font-size: 13px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; color: ${theme.color}; }
+          h1 { margin: 8px 0 0; color: #111827; font-size: 30px; line-height: 1.1; }
+          .print-date { text-align: right; color: #374151; font-size: 13px; font-weight: 700; }
+          .print-body { padding: 28px 32px 32px; }
+          .meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 26px; }
+          .meta-item { border: 1px solid #E5E7EB; border-radius: 12px; padding: 13px 14px; background: #F9FAFB; }
+          .label { display: block; margin-bottom: 5px; color: #6B7280; font-size: 11px; text-transform: uppercase; font-weight: 800; letter-spacing: 0.04em; }
+          .value { display: block; color: #111827; font-size: 14px; font-weight: 800; }
+          table { width: 100%; border-collapse: collapse; margin: 12px 0 24px; table-layout: fixed; }
+          th { text-align: left; color: #374151; background: ${theme.soft}; border: 1px solid #D1D5DB; padding: 11px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+          td { border: 1px solid #D1D5DB; padding: 12px 10px; min-height: 42px; color: #111827; font-size: 13px; line-height: 1.45; vertical-align: top; word-break: break-word; }
+          .section { border: 1px solid #E5E7EB; border-radius: 14px; margin-bottom: 16px; overflow: hidden; }
+          .section h2 { margin: 0; padding: 12px 14px; background: ${theme.soft}; color: ${theme.color}; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; }
+          .section p { margin: 0; padding: 15px 16px; color: #111827; font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
+          .signature-row { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 40px; }
+          .signature-line { border-top: 1px solid #9CA3AF; padding-top: 10px; color: #4B5563; font-size: 12px; font-weight: 700; }
+          .footer-note { margin-top: 28px; padding-top: 14px; border-top: 1px solid #E5E7EB; color: #6B7280; font-size: 11px; line-height: 1.45; }
+          @media print {
+            body { padding: 0; }
+            .print-page { border: none; border-radius: 0; min-height: auto; }
+          }
+        </style>
+      </head>
+      <body>
+        <main class="print-page">
+          <header class="print-header">
+            <div>
+              <div class="brand">CliNotes Test Page</div>
+              <h1>${escapeHtml(action.title)}</h1>
+            </div>
+            <div class="print-date">
+              <span class="label">Printed</span>
+              ${escapeHtml(printedAt)}
+            </div>
+          </header>
+          <section class="print-body">
+            <div class="meta-grid">
+              <div class="meta-item"><span class="label">Doctor</span><strong class="value">TEST Doc</strong></div>
+              <div class="meta-item"><span class="label">Patient</span><strong class="value">TEST Patient</strong></div>
+              <div class="meta-item"><span class="label">Consultation Date</span><strong class="value">${escapeHtml(printedAt)}</strong></div>
+            </div>
+            ${body}
+            <div class="signature-row">
+              <div class="signature-line">Doctor signature</div>
+              <div class="signature-line">Clinic stamp / date</div>
+            </div>
+            <p class="footer-note">Testing page preview only. Not part of the real app and not written to the database.</p>
+          </section>
+        </main>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+}
+
+function renderPrintableActionDetails(action) {
+  const data = action.data || {};
+
+  if (action.type === 'prescription') {
+    const medications = Array.isArray(data.medications) ? data.medications : [];
+    return `
+      <table>
+        <thead><tr><th>Medication</th><th>Dose</th><th>Frequency</th><th>Duration</th><th>Instructions</th></tr></thead>
+        <tbody>
+          ${medications.map(med => `
+            <tr>
+              <td>${escapeHtml(med.name || '')}</td>
+              <td>${escapeHtml(med.dose || '')}</td>
+              <td>${escapeHtml(med.frequency || '')}</td>
+              <td>${escapeHtml(med.duration || '')}</td>
+              <td>${escapeHtml(med.instructions || '')}</td>
+            </tr>
+          `).join('') || '<tr><td colspan="5">No medications listed.</td></tr>'}
+        </tbody>
+      </table>
+    `;
+  }
+
+  if (action.type === 'lab_order') {
+    const orders = Array.isArray(data.orders) ? data.orders : [];
+    return `
+      <table>
+        <thead><tr><th>Type</th><th>Order</th><th>Reason</th><th>Priority</th></tr></thead>
+        <tbody>
+          ${orders.map(order => `
+            <tr>
+              <td>${escapeHtml(order.type || '')}</td>
+              <td>${escapeHtml(order.name || '')}</td>
+              <td>${escapeHtml(order.reason || '')}</td>
+              <td>${escapeHtml(order.priority || 'Routine')}</td>
+            </tr>
+          `).join('') || '<tr><td colspan="4">No orders listed.</td></tr>'}
+        </tbody>
+      </table>
+    `;
+  }
+
+  if (action.type === 'referral') {
+    return `
+      <section class="section"><h2>Referral Specialty</h2><p>${escapeHtml(data.specialty || '')}</p></section>
+      <section class="section"><h2>Reason for Referral</h2><p>${escapeHtml(data.reason || '')}</p></section>
+      <section class="section"><h2>Patient Debrief for Next Doctor</h2><p>${escapeHtml(data.debrief || '')}</p></section>
+    `;
+  }
+
+  return `
+    <section class="section"><h2>Follow-up Date / Timing</h2><p>${escapeHtml(data.timing || action.detail || '')}</p></section>
+    <section class="section"><h2>Reason</h2><p>${escapeHtml(data.reason || 'Follow-up consultation')}</p></section>
+  `;
+}
+
+function getPrintTheme(type) {
+  return {
+    follow_up: { color: '#10B981', soft: '#ECFDF5' },
+    prescription: { color: '#EA580C', soft: '#FFF7ED' },
+    lab_order: { color: '#2563EB', soft: '#EFF6FF' },
+    referral: { color: '#BE185D', soft: '#FDF2F8' }
+  }[type] || { color: '#2F6FED', soft: '#EFF6FF' };
+}
+
+function renderRecommendedActionDetails(items = []) {
+  const rows = (items || []).filter(item => Array.isArray(item) && (item[0] || item[1]));
+  if (!rows.length) return '';
+  return `
+    <dl class="recommended-action-details">
+      ${rows.map(([label, value]) => `
+        <div>
+          <dt>${escapeHtml(label || 'Detail')}</dt>
+          <dd>${escapeHtml(value || 'Not returned.')}</dd>
+        </div>
+      `).join('')}
+    </dl>
   `;
 }
 
