@@ -23,6 +23,7 @@ app.use(express.json());
 
 // ─── Gemini Client ───
 const geminiApiKey = process.env.GEMINI_API_KEY;
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
 let gemini;
 if (geminiApiKey && geminiApiKey !== 'your_gemini_api_key_here') {
   gemini = new GoogleGenerativeAI(geminiApiKey);
@@ -330,18 +331,13 @@ function buildCleanTranscriptMarkdown(cleanedText, transcriptionMeta = {}) {
 function buildPatientDisplay(aiResult) {
   const structured = aiResult?.structured_data || {};
   const patientSummary = structured.patient_summary || {};
-  const subjective = structured.subjective || {};
-  const objective = structured.objective || {};
-  const assessment = structured.assessment || {};
-  const diagnoses = Array.isArray(assessment.diagnoses) ? assessment.diagnoses : [assessment.diagnoses].filter(Boolean);
-  const plan = normalizePlanItemsForDisplay(structured.plan);
 
   return {
     title: structured.title || 'Your Consultation',
-    what_you_came_for: patientSummary.what_you_came_for || subjective.chief_complaint || '',
-    what_was_discussed: patientSummary.what_was_discussed || subjective.history || aiResult?.summary_text || '',
-    what_the_doctor_found: patientSummary.what_the_doctor_found || objective.examination || objective.physical_exam || diagnoses.join(', '),
-    what_happens_next: patientSummary.what_happens_next || plan.map(item => item.value).join(' '),
+    what_you_came_for: patientSummary.what_you_came_for || '',
+    what_was_discussed: patientSummary.what_was_discussed || '',
+    what_the_doctor_found: patientSummary.what_the_doctor_found || '',
+    what_happens_next: patientSummary.what_happens_next || '',
   };
 }
 
@@ -499,7 +495,76 @@ app.post('/api/upload-audio/:consultationId', express.raw({ type: ['audio/*', 'a
 //   ... (commented out)
 // }
 
-async function analyzeTranscriptWithGemini(transcriptText) {
+async function parseGeminiJsonResponse(response, contextLabel = 'Gemini response') {
+  const rawText = response.response.text();
+  try {
+    return JSON.parse(extractJsonCandidate(rawText));
+  } catch (initialError) {
+    console.warn(`[Gemini] Invalid JSON for ${contextLabel}: ${initialError.message}`);
+    const repairedText = await repairGeminiJson(rawText, initialError.message, contextLabel);
+    try {
+      return JSON.parse(extractJsonCandidate(repairedText));
+    } catch (repairError) {
+      repairError.message = `${contextLabel} returned invalid JSON after repair: ${repairError.message}`;
+      throw repairError;
+    }
+  }
+}
+
+function extractJsonCandidate(text = '') {
+  const trimmed = String(text || '').trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  const candidate = fenced ? fenced[1].trim() : trimmed;
+  const firstBrace = candidate.indexOf('{');
+  const lastBrace = candidate.lastIndexOf('}');
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    return candidate.slice(firstBrace, lastBrace + 1);
+  }
+  return candidate;
+}
+
+async function repairGeminiJson(rawText, parseError, contextLabel) {
+  if (!gemini) throw new Error(`${contextLabel} returned invalid JSON: ${parseError}`);
+
+  const repairPrompt = `
+The following text was intended to be a single JSON object but it is invalid.
+Fix only the JSON syntax. Preserve all keys, values, medical content, Arabic text, English terms, arrays, and object structure as much as possible.
+Return only one strictly valid JSON object. Do not add markdown, comments, or explanation.
+
+Parse error:
+${parseError}
+
+Invalid JSON text:
+${rawText}
+`;
+
+  const repairModel = gemini.getGenerativeModel({
+    model: GEMINI_MODEL,
+    generationConfig: {
+      temperature: 0,
+      responseMimeType: "application/json",
+    }
+  });
+
+  const repairResponse = await repairModel.generateContent(repairPrompt);
+  return repairResponse.response.text();
+}
+
+function getGeminiOutputLanguageInstructions(outputLanguage = 'en', mode = 'consultation') {
+  if (outputLanguage !== 'ar') {
+    return mode === 'consultation'
+      ? 'For patient_summary, always write in English, even if the transcript is Arabic or code-switched. Use plain language suitable for the patient, preserve the facts from the transcript, avoid jargon where possible, and do not add new diagnoses, test results, or instructions that were not discussed. Translate the patient\'s meaning into simple English. If any specific fields are not mentioned in the transcript, omit them or leave them as null/empty strings.'
+      : 'Write all summary, report, decision, and action-plan display values in English unless directly quoting a speaker.';
+  }
+
+  if (mode === 'lab') {
+    return 'Write all report display values in Arabic, including summary_text, title, prominent_points, decisions, open_questions, and action_plan values. Keep JSON keys exactly as specified in English. Put every Latin-script clinical or technical term inside square brackets wherever it appears in Arabic text. Keep condition names, diagnosis names, lab names, imaging names, and medical abbreviations in English inside square brackets, e.g. [diabetes], [CBC], [CT]. Do not translate doctor names.';
+  }
+
+  return 'Write all human-readable display values in Arabic, including summary_text, title, SOAP field values, plan values, recommended action reasons/timing/instructions, and patient_summary. Keep JSON keys and status values exactly as specified in English. Put every Latin-script clinical or technical term inside square brackets wherever it appears in Arabic text. Keep condition names and diagnosis names in English inside square brackets, e.g. [asthma], [diabetes], [hypertension]. Keep medication/drug names in English or their usual Latin brand/generic spelling; do not translate drug names. Always put drug names inside square brackets, e.g. [Panadol], [metformin]. Translate medication instructions, frequency, duration, follow-up explanations, lab order reasons, and referral debriefs into Arabic. Keep lab names, imaging names, clinical abbreviations, and English medical terms in English inside square brackets, e.g. [CBC], [MRI], [HbA1c].';
+}
+
+async function analyzeTranscriptWithGemini(transcriptText, { outputLanguage = 'en' } = {}) {
   if (!gemini) {
     throw new Error("Gemini API key is missing or invalid on the server.");
   }
@@ -575,22 +640,22 @@ Please analyze the provided text and output a JSON object with the following str
       }
     },
     "patient_summary": {
-      "what_you_came_for": "One short sentence in simple patient-friendly language.",
-      "what_was_discussed": "One to two short sentences explaining what was talked about.",
-      "what_the_doctor_found": "One to two short sentences explaining findings without unnecessary jargon.",
-      "what_happens_next": "One to two short sentences explaining the next steps clearly."
+      "what_you_came_for": "One short sentence in simple patient-friendly English.",
+      "what_was_discussed": "One to two short English sentences explaining what was talked about.",
+      "what_the_doctor_found": "One to two short English sentences explaining findings without unnecessary jargon.",
+      "what_happens_next": "One to two short English sentences explaining the next steps clearly."
     },
     "cleaned_transcript": "The same transcript text, lightly cleaned. Correct ambiguous medical terms and preserve English medical terminology in Latin letters inside Arabic text."
   }
 }
 For cleaned_transcript: keep the transcript meaning, order, speakers if obvious, and wording as close as possible to the Soniox transcript. Do not summarize. Do not add facts. Only correct obvious transcription mistakes, especially English medical terminology that was mistakenly written phonetically or in Arabic alphabet inside Arabic speech. Examples: "سي تي" -> "[CT]", "ام ار اي" -> "[MRI]", "اتش بي اي ون سي" -> "[HbA1c]", "كرياتينين" -> "[creatinine]" when it is clearly the medical term. Preserve Arabic sentences as Arabic. When an English medical term appears inside an Arabic sentence, write it in Latin letters inside square brackets to prevent mixed-direction display issues.
 For recommended_actions: include only actions that are clearly supported by the transcript. If no action of a type was mentioned or implied, set needed to false and leave arrays empty. These four action types are the only allowed action types. Do not invent medications, tests, referrals, or follow-up timing.
-For patient_summary, use plain language suitable for the patient, preserve the facts from the transcript, avoid jargon where possible, and do not add new diagnoses, test results, or instructions that were not discussed. If any specific fields are not mentioned in the transcript, omit them or leave them as null/empty strings.
-Ensure the output is strictly valid JSON and nothing else.
+${getGeminiOutputLanguageInstructions(outputLanguage, 'consultation')}
+Ensure the output is strictly valid JSON and nothing else. All line breaks inside string values, especially cleaned_transcript, must be escaped as \\n so the response remains valid JSON.
 `;
 
   const model = gemini.getGenerativeModel({
-    model: "gemini-2.5-flash",
+    model: GEMINI_MODEL,
     systemInstruction: systemPrompt,
     generationConfig: {
       temperature: 0.2,
@@ -599,10 +664,10 @@ Ensure the output is strictly valid JSON and nothing else.
   });
 
   const response = await model.generateContent(transcriptText);
-  return JSON.parse(response.response.text());
+  return parseGeminiJsonResponse(response, 'consultation analysis');
 }
 
-async function analyzeLabDiscussionWithGemini(transcriptText) {
+async function analyzeLabDiscussionWithGemini(transcriptText, { outputLanguage = 'en' } = {}) {
   if (!gemini) {
     throw new Error("Gemini API key is missing or invalid on the server.");
   }
@@ -625,10 +690,12 @@ The discussion may include Arabic-English code switching. Return strictly valid 
 }
 For cleaned_transcript: keep the transcript meaning, order, speakers if obvious, and wording as close as possible to the Soniox transcript. Do not summarize. Do not add facts. Only correct obvious transcription mistakes, especially English lab/imaging/medical terminology that was mistakenly written phonetically or in Arabic alphabet inside Arabic speech. Examples: "سي بي سي" -> "[CBC]", "سي تي" -> "[CT]", "ام ار اي" -> "[MRI]", "اتش بي اي ون سي" -> "[HbA1c]", "دي دايمر" -> "[D-dimer]". Preserve Arabic sentences as Arabic. When an English medical term appears inside an Arabic sentence, write it in Latin letters inside square brackets to prevent mixed-direction display issues.
 Do not invent facts. If an item is not mentioned, use an empty array.
+${getGeminiOutputLanguageInstructions(outputLanguage, 'lab')}
+Ensure all line breaks inside string values, especially cleaned_transcript, are escaped as \\n so the response remains valid JSON.
 `;
 
   const model = gemini.getGenerativeModel({
-    model: "gemini-2.5-flash",
+    model: GEMINI_MODEL,
     systemInstruction: systemPrompt,
     generationConfig: {
       temperature: 0.2,
@@ -637,7 +704,7 @@ Do not invent facts. If an item is not mentioned, use an empty array.
   });
 
   const response = await model.generateContent(transcriptText);
-  return JSON.parse(response.response.text());
+  return parseGeminiJsonResponse(response, 'lab discussion analysis');
 }
 
 async function generatePatientSummaryWithGemini(structuredData) {
@@ -649,16 +716,16 @@ async function generatePatientSummaryWithGemini(structuredData) {
 You are a patient-friendly clinical explainer. Convert an approved doctor's structured note into simple language for the patient.
 Return strictly valid JSON with this shape:
 {
-  "what_you_came_for": "One short sentence.",
-  "what_was_discussed": "One to two short sentences.",
-  "what_the_doctor_found": "One to two short sentences.",
-  "what_happens_next": "One to two short sentences."
+  "what_you_came_for": "One short English sentence.",
+  "what_was_discussed": "One to two short English sentences.",
+  "what_the_doctor_found": "One to two short English sentences.",
+  "what_happens_next": "One to two short English sentences."
 }
-Use only facts present in the structured note. Do not add new diagnoses, results, or instructions. Avoid jargon and keep the tone calm and clear.
+Always write in English, even if the source note contains Arabic or code-switched Arabic-English. Use only facts present in the structured note. Do not add new diagnoses, results, or instructions. Avoid jargon and keep the tone calm and clear.
 `;
 
   const model = gemini.getGenerativeModel({
-    model: "gemini-2.5-flash",
+    model: GEMINI_MODEL,
     systemInstruction: systemPrompt,
     generationConfig: {
       temperature: 0.2,
@@ -667,7 +734,7 @@ Use only facts present in the structured note. Do not add new diagnoses, results
   });
 
   const response = await model.generateContent(JSON.stringify(structuredData || {}));
-  return JSON.parse(response.response.text());
+  return parseGeminiJsonResponse(response, 'patient summary');
 }
 
 // ─── Existing: Analyze Transcript Endpoint ───
@@ -731,14 +798,16 @@ app.post('/api/test/consultation', express.raw({ type: ['audio/*', 'application/
   }
 
   try {
+    const outputLanguage = req.query.language === 'ar' ? 'ar' : 'en';
     const result = await runTestAudioPipeline(req.body, {
       filename: `test-consultation-${Date.now()}.webm`,
       transcriptionConfig: fileId => buildTranscriptionConfig(fileId),
-      analyze: analyzeTranscriptWithGemini,
+      analyze: transcriptText => analyzeTranscriptWithGemini(transcriptText, { outputLanguage }),
     });
 
     res.json({
       mode: 'doctor_patient_consultation_test',
+      output_language: outputLanguage,
       ...result,
       doctor_display: buildDoctorSoapDisplay(result.analysis_json),
       patient_display: buildPatientDisplay(result.analysis_json),
@@ -767,14 +836,16 @@ app.post('/api/test/lab-discussion', express.raw({ type: ['audio/*', 'applicatio
     .map(name => ({ name }));
 
   try {
+    const outputLanguage = req.query.language === 'ar' ? 'ar' : 'en';
     const result = await runTestAudioPipeline(req.body, {
       filename: `test-lab-discussion-${Date.now()}.webm`,
       transcriptionConfig: fileId => buildLabDiscussionTranscriptionConfig(fileId, participants),
-      analyze: analyzeLabDiscussionWithGemini,
+      analyze: transcriptText => analyzeLabDiscussionWithGemini(transcriptText, { outputLanguage }),
     });
 
     res.json({
       mode: 'doctor_discussion_test',
+      output_language: outputLanguage,
       ...result,
       doctor_display: buildLabDoctorDisplay(result.analysis_json, participants.map(p => p.name)),
     });
@@ -1497,5 +1568,6 @@ app.listen(port, () => {
   console.log(`  Soniox: ${SONIOX_API_KEY && SONIOX_API_KEY !== 'your_soniox_api_key_here' ? '✓ configured' : '✗ missing'}`);
   // console.log(`  OpenAI: ${apiKey && apiKey !== 'your_openai_api_key_here' ? '✓ configured' : '✗ missing'}`);
   console.log(`  Gemini: ${geminiApiKey && geminiApiKey !== 'your_gemini_api_key_here' ? '✓ configured' : '✗ missing'}`);
+  console.log(`  Gemini model: ${GEMINI_MODEL}`);
   console.log(`  Supabase Admin: ${supabaseAdmin ? '✓ configured' : '✗ missing'}`);
 });

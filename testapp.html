@@ -15,26 +15,32 @@
   <header class="testapp-topbar">
     <div>
       <a href="/" class="testapp-logo">CliNotes</a>
-      <span class="testapp-badge">Testing Page</span>
+      <span class="testapp-badge" id="testingBadge">Testing Page</span>
     </div>
-    <p>Not part of the real app. No authentication, patient verification, or database write is performed here.</p>
+    <div class="testapp-topbar-right">
+      <p id="testingDisclaimer">Not part of the real app. No authentication, patient verification, or database write is performed here.</p>
+      <div class="language-toggle" aria-label="Testing page language">
+        <button type="button" id="englishToggleBtn" class="active">English</button>
+        <button type="button" id="arabicToggleBtn">العربية</button>
+      </div>
+    </div>
   </header>
 
   <main class="testapp-shell">
     <section class="testapp-hero">
       <div>
-        <span class="eyebrow">Pipeline Test Harness</span>
-        <h1>Test CliNotes recording flows without restrictions</h1>
-        <p>This page records audio, sends it through the current Soniox and Gemini pipeline, and displays the outputs that would normally appear for doctors and patients.</p>
+        <span class="eyebrow" id="heroEyebrow">Pipeline Test Harness</span>
+        <h1 id="heroTitle">Test CliNotes recording flows without restrictions</h1>
+        <p id="heroDescription">This page records audio, sends it through the current Soniox and Gemini pipeline, and displays the outputs that would normally appear for doctors and patients.</p>
       </div>
       <div class="hero-actions">
         <button class="mode-button consultation-mode" id="consultationModeBtn">
           <i class="uil uil-stethoscope"></i>
-          Test Doctor Consultation
+          <span id="consultationModeLabel">Test Doctor Consultation</span>
         </button>
         <button class="mode-button labs-mode" id="labsModeBtn">
           <i class="uil uil-flask"></i>
-          Test Doctor Discussion
+          <span id="labsModeLabel">Test Doctor Discussion</span>
         </button>
       </div>
     </section>
@@ -50,10 +56,10 @@
         </div>
 
         <div class="mock-fields" id="labsFields">
-          <label for="mockDoctorsInput">Mock participating doctors</label>
+          <label for="mockDoctorsInput" id="mockDoctorsLabel">Mock participating doctors</label>
           <div class="doctor-entry-row">
             <input id="mockDoctorsInput" type="text" placeholder="Dr. Omar Mah">
-            <button id="addMockDoctorBtn" type="button"><i class="uil uil-user-plus"></i> Add</button>
+            <button id="addMockDoctorBtn" type="button"><i class="uil uil-user-plus"></i> <span id="addDoctorLabel">Add</span></button>
           </div>
           <div class="mock-doctor-list" id="mockDoctorList">
             <span>Dr. Omar Mah</span>
@@ -70,18 +76,18 @@
             </div>
           </div>
           <div class="recording-controls">
-            <button class="record-start-btn" id="startRecordBtn"><i class="uil uil-microphone"></i> Start Recording</button>
-            <button class="record-stop-btn" id="stopRecordBtn" disabled><i class="uil uil-stop-circle"></i> Stop & Run Pipeline</button>
+            <button class="record-start-btn" id="startRecordBtn"><i class="uil uil-microphone"></i> <span id="startRecordLabel">Start Recording</span></button>
+            <button class="record-stop-btn" id="stopRecordBtn" disabled><i class="uil uil-stop-circle"></i> <span id="stopRecordLabel">Stop & Run Pipeline</span></button>
             <label class="record-upload-btn" id="uploadConsultationLabel" for="uploadConsultationInput">
               <i class="uil uil-upload"></i>
-              Upload Consultation Audio
+              <span id="uploadConsultationText">Upload Consultation Audio</span>
             </label>
             <input id="uploadConsultationInput" type="file" accept="audio/*" hidden>
           </div>
         </div>
 
         <div class="pipeline-diagnostics">
-          <h3>Diagnostics</h3>
+          <h3 id="diagnosticsTitle">Diagnostics</h3>
           <div id="diagnosticsList"></div>
         </div>
       </div>
@@ -89,7 +95,7 @@
       <div class="test-card output-card">
         <div class="card-header">
           <div>
-            <h2>Generated Output</h2>
+            <h2 id="outputTitle">Generated Output</h2>
             <p id="outputSubtitle">Results appear here after Soniox and Gemini finish.</p>
           </div>
         </div>

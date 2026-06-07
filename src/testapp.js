@@ -1,5 +1,6 @@
 const state = {
   mode: 'consultation',
+  language: 'en',
   mediaRecorder: null,
   stream: null,
   chunks: [],
@@ -10,40 +11,281 @@ const state = {
 };
 
 const els = {
+  testingBadge: document.getElementById('testingBadge'),
+  testingDisclaimer: document.getElementById('testingDisclaimer'),
+  englishToggleBtn: document.getElementById('englishToggleBtn'),
+  arabicToggleBtn: document.getElementById('arabicToggleBtn'),
+  heroEyebrow: document.getElementById('heroEyebrow'),
+  heroTitle: document.getElementById('heroTitle'),
+  heroDescription: document.getElementById('heroDescription'),
+  consultationModeLabel: document.getElementById('consultationModeLabel'),
+  labsModeLabel: document.getElementById('labsModeLabel'),
   consultationModeBtn: document.getElementById('consultationModeBtn'),
   labsModeBtn: document.getElementById('labsModeBtn'),
   modeTitle: document.getElementById('modeTitle'),
   modeSubtitle: document.getElementById('modeSubtitle'),
   modePill: document.getElementById('modePill'),
   labsFields: document.getElementById('labsFields'),
+  mockDoctorsLabel: document.getElementById('mockDoctorsLabel'),
   mockDoctorsInput: document.getElementById('mockDoctorsInput'),
   addMockDoctorBtn: document.getElementById('addMockDoctorBtn'),
+  addDoctorLabel: document.getElementById('addDoctorLabel'),
   mockDoctorList: document.getElementById('mockDoctorList'),
   recordingDot: document.getElementById('recordingDot'),
   recordingLabel: document.getElementById('recordingLabel'),
   recordingTimer: document.getElementById('recordingTimer'),
   startRecordBtn: document.getElementById('startRecordBtn'),
+  startRecordLabel: document.getElementById('startRecordLabel'),
   stopRecordBtn: document.getElementById('stopRecordBtn'),
+  stopRecordLabel: document.getElementById('stopRecordLabel'),
   uploadConsultationLabel: document.getElementById('uploadConsultationLabel'),
+  uploadConsultationText: document.getElementById('uploadConsultationText'),
   uploadConsultationInput: document.getElementById('uploadConsultationInput'),
+  diagnosticsTitle: document.getElementById('diagnosticsTitle'),
   diagnosticsList: document.getElementById('diagnosticsList'),
+  outputTitle: document.getElementById('outputTitle'),
   outputContent: document.getElementById('outputContent'),
   outputSubtitle: document.getElementById('outputSubtitle'),
 };
 
-const diagnosticSteps = [
-  'Recording local microphone audio',
-  'Uploading test audio to server',
-  'Sending audio to Soniox',
-  'Waiting for transcription',
-  'Sending transcript to Gemini',
-  'Rendering test outputs',
-];
+const copy = {
+  en: {
+    testingBadge: 'Testing Page',
+    testingDisclaimer: 'Not part of the real app. No authentication, patient verification, or database write is performed here.',
+    heroEyebrow: 'Pipeline Test Harness',
+    heroTitle: 'Test CliNotes recording flows without restrictions',
+    heroDescription: 'This page records audio, sends it through the current Soniox and Gemini pipeline, and displays the outputs that would normally appear for doctors and patients.',
+    consultationMode: 'Test Doctor Consultation',
+    labsMode: 'Test Doctor Discussion',
+    consultationTitle: 'Doctor Consultation Test',
+    labsTitle: 'Doctor Discussion Test',
+    consultationSubtitle: 'Record a mock doctor-patient consultation. No QR verification or patient lookup is required.',
+    labsSubtitle: 'Add mock doctor names, record an internal discussion, and inspect the report that would be sent to participating doctors.',
+    consultationPill: 'Consultation',
+    labsPill: 'Labs Mode',
+    mockDoctors: 'Mock participating doctors',
+    add: 'Add',
+    ready: 'Ready to record',
+    recordingConsultation: 'Recording consultation',
+    recordingLabs: 'Recording doctor discussion',
+    startRecording: 'Start Recording',
+    stopRecording: 'Stop & Run Pipeline',
+    uploadAudio: 'Upload Consultation Audio',
+    diagnostics: 'Diagnostics',
+    outputTitle: 'Generated Output',
+    outputWaiting: 'Results appear here after Soniox and Gemini finish.',
+    emptyOutput: 'Choose a mode, record a short sample, then stop the recording.',
+    uploadLabsOnly: 'Audio upload is currently available for patient consultation testing only.',
+    uploadedAudio: 'Uploaded audio selected',
+    preparingAudio: 'Preparing audio',
+    processing: 'Processing through Soniox and Gemini. This can take a minute.',
+    pipelineRunning: 'Pipeline is running...',
+    pipelineComplete: 'Test pipeline completed.',
+    pipelineFailed: 'Pipeline failed.',
+    pipelineError: 'Pipeline Error',
+    microphoneError: 'Microphone access is required for this test.',
+    requestFailed: 'The test pipeline failed.',
+    doctorSoap: 'Doctor SOAP Draft',
+    recommendedActions: 'Recommended Actions',
+    patientLanguage: 'Patient-Side Simple Language',
+    whatYouCameFor: 'What you came for',
+    whatWasDiscussed: 'What was discussed',
+    whatDoctorFound: 'What the doctor found',
+    whatHappensNext: 'What happens next',
+    noActionsTitle: 'No recommended actions generated',
+    noActionsBody: 'Gemini did not return follow-up, prescription, lab order, or referral actions for this test consultation.',
+    followUpTitle: 'Book follow-up consultation',
+    followUpDefault: 'Follow-up recommended',
+    prescriptionTitle: 'Prescription draft',
+    prescriptionDefault: 'Medication draft generated',
+    labOrderTitle: 'Lab or imaging order',
+    labOrderDefault: 'Order draft generated',
+    referralTitle: 'Referral draft',
+    referralDefault: 'Referral draft generated',
+    timing: 'Timing',
+    reason: 'Reason',
+    specialty: 'Specialty',
+    debrief: 'Debrief',
+    detail: 'Detail',
+    printable: 'View printable version',
+    geminiJson: 'Gemini JSON',
+    transcript: 'Transcript',
+    noTranscript: 'No transcript returned.',
+    soapTitleFallback: 'Clinical Consultation Draft',
+    subjective: 'Subjective',
+    objective: 'Objective',
+    assessment: 'Assessment',
+    plan: 'Plan',
+    chiefComplaint: 'Chief Complaint',
+    medicalHistory: 'Medical History',
+    allergies: 'Allergies',
+    vitals: 'Vitals',
+    physicalExam: 'Physical Exam',
+    diagnoses: 'Diagnoses',
+    treatment: 'Treatment',
+    followUp: 'Follow Up',
+    labReport: 'Participating Doctor Report',
+    headline: 'Headline',
+    participants: 'Participants',
+    summary: 'Summary',
+    prominentPoints: 'Prominent Points',
+    decisions: 'Decisions',
+    actionPlan: 'Action Plan',
+    notReturned: 'Not returned.',
+    diagnosticSteps: [
+      'Recording local microphone audio',
+      'Uploading test audio to server',
+      'Sending audio to Soniox',
+      'Waiting for transcription',
+      'Sending transcript to Gemini',
+      'Rendering test outputs',
+    ],
+    printBrand: 'CliNotes Test Page',
+    printed: 'Printed',
+    doctor: 'Doctor',
+    patient: 'Patient',
+    consultationDate: 'Consultation Date',
+    medication: 'Medication',
+    dose: 'Dose',
+    frequency: 'Frequency',
+    duration: 'Duration',
+    instructions: 'Instructions',
+    type: 'Type',
+    order: 'Order',
+    priority: 'Priority',
+    noMedications: 'No medications listed.',
+    noOrders: 'No orders listed.',
+    referralSpecialty: 'Referral Specialty',
+    referralReason: 'Reason for Referral',
+    referralDebrief: 'Patient Debrief for Next Doctor',
+    followupTiming: 'Follow-up Date / Timing',
+    doctorSignature: 'Doctor signature',
+    clinicStamp: 'Clinic stamp / date',
+    printFooter: 'Testing page preview only. Not part of the real app and not written to the database.',
+  },
+  ar: {
+    testingBadge: 'صفحة اختبار',
+    testingDisclaimer: 'هذه ليست جزءا من التطبيق الحقيقي. لا يتم إجراء تسجيل دخول أو تحقق من المريض أو كتابة في قاعدة البيانات هنا.',
+    heroEyebrow: 'اختبار مسار المعالجة',
+    heroTitle: 'اختبر تسجيلات [CliNotes] بدون قيود',
+    heroDescription: 'تسجل هذه الصفحة الصوت وترسله عبر مسار [Soniox] و [Gemini] الحالي، ثم تعرض المخرجات التي تظهر عادة للطبيب والمريض.',
+    consultationMode: 'اختبار استشارة طبيب',
+    labsMode: 'اختبار نقاش أطباء',
+    consultationTitle: 'اختبار استشارة طبيب',
+    labsTitle: 'اختبار نقاش أطباء',
+    consultationSubtitle: 'سجل استشارة تجريبية بين طبيب ومريض. لا حاجة لمسح [QR] أو التحقق من المريض.',
+    labsSubtitle: 'أضف أسماء أطباء تجريبية، وسجل نقاشا داخليا، ثم راجع التقرير الذي سيرسل للأطباء المشاركين.',
+    consultationPill: 'استشارة',
+    labsPill: 'وضع المختبرات',
+    mockDoctors: 'الأطباء المشاركون تجريبيا',
+    add: 'إضافة',
+    ready: 'جاهز للتسجيل',
+    recordingConsultation: 'جار تسجيل الاستشارة',
+    recordingLabs: 'جار تسجيل نقاش الأطباء',
+    startRecording: 'بدء التسجيل',
+    stopRecording: 'إيقاف وتشغيل المسار',
+    uploadAudio: 'رفع تسجيل استشارة',
+    diagnostics: 'التشخيصات',
+    outputTitle: 'المخرجات الناتجة',
+    outputWaiting: 'ستظهر النتائج هنا بعد انتهاء [Soniox] و [Gemini].',
+    emptyOutput: 'اختر الوضع، سجل عينة قصيرة، ثم أوقف التسجيل.',
+    uploadLabsOnly: 'رفع الصوت متاح حاليا لاختبار استشارات المرضى فقط.',
+    uploadedAudio: 'تم اختيار ملف صوتي',
+    preparingAudio: 'جار تجهيز الصوت',
+    processing: 'جار تمرير الصوت عبر [Soniox] و [Gemini]. قد يستغرق ذلك دقيقة.',
+    pipelineRunning: 'المسار قيد التشغيل...',
+    pipelineComplete: 'اكتمل مسار الاختبار.',
+    pipelineFailed: 'فشل المسار.',
+    pipelineError: 'خطأ في المسار',
+    microphoneError: 'يلزم السماح بالميكروفون لهذا الاختبار.',
+    requestFailed: 'فشل مسار الاختبار.',
+    doctorSoap: 'مسودة [SOAP] للطبيب',
+    recommendedActions: 'الإجراءات المقترحة',
+    patientLanguage: 'شرح مبسط للمريض',
+    whatYouCameFor: 'سبب الزيارة',
+    whatWasDiscussed: 'ما تمت مناقشته',
+    whatDoctorFound: 'ما وجده الطبيب',
+    whatHappensNext: 'الخطوات التالية',
+    noActionsTitle: 'لم يتم توليد إجراءات مقترحة',
+    noActionsBody: 'لم يرجع [Gemini] إجراءات متابعة أو وصفة أو طلب مختبر أو إحالة لهذه الاستشارة التجريبية.',
+    followUpTitle: 'حجز متابعة',
+    followUpDefault: 'تم اقتراح متابعة',
+    prescriptionTitle: 'مسودة وصفة',
+    prescriptionDefault: 'تم توليد مسودة دواء',
+    labOrderTitle: 'طلب مختبر أو تصوير',
+    labOrderDefault: 'تم توليد مسودة طلب',
+    referralTitle: 'مسودة إحالة',
+    referralDefault: 'تم توليد مسودة إحالة',
+    timing: 'التوقيت',
+    reason: 'السبب',
+    specialty: 'التخصص',
+    debrief: 'ملخص للطبيب التالي',
+    detail: 'تفصيل',
+    printable: 'عرض النسخة القابلة للطباعة',
+    geminiJson: '[JSON] من [Gemini]',
+    transcript: 'النص المفرغ',
+    noTranscript: 'لم يتم إرجاع نص مفرغ.',
+    soapTitleFallback: 'مسودة استشارة سريرية',
+    subjective: 'ذاتي',
+    objective: 'موضوعي',
+    assessment: 'التقييم',
+    plan: 'الخطة',
+    chiefComplaint: 'الشكوى الرئيسية',
+    medicalHistory: 'التاريخ المرضي',
+    allergies: 'الحساسية',
+    vitals: 'العلامات الحيوية',
+    physicalExam: 'الفحص السريري',
+    diagnoses: 'التشخيصات',
+    treatment: 'العلاج',
+    followUp: 'المتابعة',
+    labReport: 'تقرير الطبيب المشارك',
+    headline: 'العنوان',
+    participants: 'المشاركون',
+    summary: 'الملخص',
+    prominentPoints: 'النقاط الأبرز',
+    decisions: 'القرارات',
+    actionPlan: 'خطة العمل',
+    notReturned: 'غير متوفر.',
+    diagnosticSteps: [
+      'تسجيل صوت الميكروفون محليا',
+      'رفع صوت الاختبار إلى الخادم',
+      'إرسال الصوت إلى [Soniox]',
+      'انتظار التفريغ الصوتي',
+      'إرسال النص إلى [Gemini]',
+      'عرض مخرجات الاختبار',
+    ],
+    printBrand: 'صفحة اختبار [CliNotes]',
+    printed: 'تمت الطباعة',
+    doctor: 'الطبيب',
+    patient: 'المريض',
+    consultationDate: 'تاريخ الاستشارة',
+    medication: 'الدواء',
+    dose: 'الجرعة',
+    frequency: 'التكرار',
+    duration: 'المدة',
+    instructions: 'التعليمات',
+    type: 'النوع',
+    order: 'الطلب',
+    priority: 'الأولوية',
+    noMedications: 'لا توجد أدوية مدرجة.',
+    noOrders: 'لا توجد طلبات مدرجة.',
+    referralSpecialty: 'تخصص الإحالة',
+    referralReason: 'سبب الإحالة',
+    referralDebrief: 'ملخص المريض للطبيب التالي',
+    followupTiming: 'تاريخ / توقيت المتابعة',
+    doctorSignature: 'توقيع الطبيب',
+    clinicStamp: 'ختم العيادة / التاريخ',
+    printFooter: 'معاينة من صفحة الاختبار فقط. ليست جزءا من التطبيق الحقيقي ولا يتم حفظها في قاعدة البيانات.',
+  }
+};
 
+renderStaticText();
 renderMode();
 renderMockDoctors();
 renderDiagnostics();
 
+els.englishToggleBtn.addEventListener('click', () => setLanguage('en'));
+els.arabicToggleBtn.addEventListener('click', () => setLanguage('ar'));
 els.consultationModeBtn.addEventListener('click', () => setMode('consultation'));
 els.labsModeBtn.addEventListener('click', () => setMode('labs'));
 els.addMockDoctorBtn.addEventListener('click', addMockDoctor);
@@ -69,7 +311,42 @@ function setMode(mode) {
   renderMode();
   renderDiagnostics();
   els.outputContent.className = 'empty-output';
-  els.outputContent.textContent = 'Choose a mode, record a short sample, then stop the recording.';
+  els.outputContent.innerHTML = formatBidiText(t('emptyOutput'));
+}
+
+function setLanguage(language) {
+  if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') return;
+  state.language = language;
+  state.lastRecommendedActions = [];
+  renderStaticText();
+  renderMode();
+  renderDiagnostics();
+  els.outputContent.className = 'empty-output';
+  els.outputContent.textContent = t('emptyOutput');
+}
+
+function renderStaticText() {
+  document.documentElement.lang = state.language === 'ar' ? 'ar' : 'en';
+  els.englishToggleBtn.classList.toggle('active', state.language === 'en');
+  els.arabicToggleBtn.classList.toggle('active', state.language === 'ar');
+  setBidiContent(els.testingBadge, t('testingBadge'));
+  setBidiContent(els.testingDisclaimer, t('testingDisclaimer'));
+  setBidiContent(els.heroEyebrow, t('heroEyebrow'));
+  setBidiContent(els.heroTitle, t('heroTitle'));
+  setBidiContent(els.heroDescription, t('heroDescription'));
+  setBidiContent(els.consultationModeLabel, t('consultationMode'));
+  setBidiContent(els.labsModeLabel, t('labsMode'));
+  setBidiContent(els.mockDoctorsLabel, t('mockDoctors'));
+  setBidiContent(els.addDoctorLabel, t('add'));
+  setBidiContent(els.startRecordLabel, t('startRecording'));
+  setBidiContent(els.stopRecordLabel, t('stopRecording'));
+  setBidiContent(els.uploadConsultationText, t('uploadAudio'));
+  setBidiContent(els.diagnosticsTitle, t('diagnostics'));
+  setBidiContent(els.outputTitle, t('outputTitle'));
+  setBidiContent(els.outputSubtitle, t('outputWaiting'));
+  if (els.outputContent.classList.contains('empty-output')) {
+    els.outputContent.innerHTML = formatBidiText(t('emptyOutput'));
+  }
 }
 
 function renderMode() {
@@ -78,11 +355,12 @@ function renderMode() {
   els.labsModeBtn.classList.toggle('inactive', !isLabs);
   els.labsFields.classList.toggle('hidden', !isLabs);
   els.uploadConsultationLabel.classList.toggle('hidden', isLabs);
-  els.modeTitle.textContent = isLabs ? 'Doctor Discussion Test' : 'Doctor Consultation Test';
-  els.modeSubtitle.textContent = isLabs
-    ? 'Add mock doctor names, record an internal discussion, and inspect the report that would be sent to participating doctors.'
-    : 'Record a mock doctor-patient consultation. No QR verification or patient lookup is required.';
-  els.modePill.textContent = isLabs ? 'Labs Mode' : 'Consultation';
+  setBidiContent(els.modeTitle, isLabs ? t('labsTitle') : t('consultationTitle'));
+  setBidiContent(els.modeSubtitle, isLabs ? t('labsSubtitle') : t('consultationSubtitle'));
+  setBidiContent(els.modePill, isLabs ? t('labsPill') : t('consultationPill'));
+  if (!els.recordingDot.classList.contains('active')) {
+    setBidiContent(els.recordingLabel, t('ready'));
+  }
 }
 
 function addMockDoctor() {
@@ -135,12 +413,12 @@ async function startRecording() {
     state.timer = setInterval(tickTimer, 1000);
 
     els.recordingDot.classList.add('active');
-    els.recordingLabel.textContent = state.mode === 'labs' ? 'Recording doctor discussion' : 'Recording consultation';
+    setBidiContent(els.recordingLabel, state.mode === 'labs' ? t('recordingLabs') : t('recordingConsultation'));
     els.startRecordBtn.disabled = true;
     els.stopRecordBtn.disabled = false;
     renderDiagnostics(0);
   } catch (error) {
-    alert('Microphone access is required for this test.');
+    alert(t('microphoneError'));
     console.error(error);
   }
 }
@@ -151,11 +429,11 @@ async function handleConsultationUpload(event) {
   if (!file) return;
 
   if (state.mode !== 'consultation') {
-    alert('Audio upload is currently available for patient consultation testing only.');
+    alert(t('uploadLabsOnly'));
     return;
   }
 
-  els.recordingLabel.textContent = 'Uploaded audio selected';
+  setBidiContent(els.recordingLabel, t('uploadedAudio'));
   els.recordingTimer.textContent = '--:--';
   els.startRecordBtn.disabled = true;
   els.stopRecordBtn.disabled = true;
@@ -168,7 +446,7 @@ async function handleConsultationUpload(event) {
 
 function stopRecording() {
   if (!state.mediaRecorder || state.mediaRecorder.state === 'inactive') return;
-  els.recordingLabel.textContent = 'Preparing audio';
+  setBidiContent(els.recordingLabel, t('preparingAudio'));
   els.stopRecordBtn.disabled = true;
   state.mediaRecorder.stop();
   clearInterval(state.timer);
@@ -178,8 +456,8 @@ async function runPipeline(audioBlob) {
   try {
     renderDiagnostics(1);
     els.outputContent.className = 'empty-output';
-    els.outputContent.textContent = 'Processing through Soniox and Gemini. This can take a minute.';
-    els.outputSubtitle.textContent = 'Pipeline is running...';
+    els.outputContent.innerHTML = formatBidiText(t('processing'));
+    setBidiContent(els.outputSubtitle, t('pipelineRunning'));
 
     setTimeout(() => renderDiagnostics(2), 400);
     setTimeout(() => renderDiagnostics(3), 1200);
@@ -188,20 +466,20 @@ async function runPipeline(audioBlob) {
     const result = await submitAudio(audioBlob);
 
     renderDiagnostics(5, true);
-    els.outputSubtitle.textContent = 'Test pipeline completed.';
+    setBidiContent(els.outputSubtitle, t('pipelineComplete'));
     renderOutput(result);
   } catch (error) {
-    els.outputSubtitle.textContent = 'Pipeline failed.';
+    setBidiContent(els.outputSubtitle, t('pipelineFailed'));
     els.outputContent.className = '';
     els.outputContent.innerHTML = `
       <section class="output-section">
-        <h3>Pipeline Error</h3>
+        <h3>${escapeHtml(t('pipelineError'))}</h3>
         <div class="display-tile"><p>${escapeHtml(error.message || 'Unknown error')}</p></div>
       </section>
     `;
   } finally {
     els.recordingDot.classList.remove('active');
-    els.recordingLabel.textContent = 'Ready to record';
+    setBidiContent(els.recordingLabel, t('ready'));
     els.startRecordBtn.disabled = false;
     els.stopRecordBtn.disabled = true;
   }
@@ -209,9 +487,10 @@ async function runPipeline(audioBlob) {
 
 async function submitAudio(audioBlob) {
   const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+  const languageQuery = `language=${encodeURIComponent(state.language)}`;
   const endpoint = state.mode === 'labs'
-    ? `${serverUrl}/api/test/lab-discussion?participants=${encodeURIComponent(state.mockDoctors.join(','))}`
-    : `${serverUrl}/api/test/consultation`;
+    ? `${serverUrl}/api/test/lab-discussion?participants=${encodeURIComponent(state.mockDoctors.join(','))}&${languageQuery}`
+    : `${serverUrl}/api/test/consultation?${languageQuery}`;
 
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -227,7 +506,7 @@ async function submitAudio(audioBlob) {
     data = { error: text };
   }
 
-  if (!response.ok) throw new Error(data.error || 'The test pipeline failed.');
+  if (!response.ok) throw new Error(data.error || t('requestFailed'));
   return data;
 }
 
@@ -245,20 +524,20 @@ function renderConsultationOutput(result) {
   state.lastRecommendedActions = recommendedActions;
   return `
     <section class="output-section">
-      <h3>Doctor SOAP Draft</h3>
+      <h3>${escapeHtml(t('doctorSoap'))}</h3>
       ${renderDoctorSoapDraft(doctor)}
     </section>
     <section class="output-section">
-      <h3>Recommended Actions</h3>
+      <h3>${escapeHtml(t('recommendedActions'))}</h3>
       ${renderRecommendedActions(recommendedActions)}
     </section>
     <section class="output-section">
-      <h3>Patient-Side Simple Language</h3>
+      <h3>${escapeHtml(t('patientLanguage'))}</h3>
       <div class="patient-language-grid">
-        ${tile('What you came for', patient.what_you_came_for)}
-        ${tile('What was discussed', patient.what_was_discussed)}
-        ${tile('What the doctor found', patient.what_the_doctor_found)}
-        ${tile('What happens next', patient.what_happens_next)}
+        ${tile(t('whatYouCameFor'), patient.what_you_came_for)}
+        ${tile(t('whatWasDiscussed'), patient.what_was_discussed)}
+        ${tile(t('whatDoctorFound'), patient.what_the_doctor_found)}
+        ${tile(t('whatHappensNext'), patient.what_happens_next)}
       </div>
     </section>
     ${renderJsonAndTranscript(result)}
@@ -276,12 +555,12 @@ function extractRecommendedActions(analysisJson = {}) {
       type: 'follow_up',
       icon: 'uil-calendar-alt',
       tone: 'follow-up',
-      title: 'Book follow-up consultation',
-      detail: actions.follow_up.timing || actions.follow_up.reason || 'Follow-up recommended',
+      title: t('followUpTitle'),
+      detail: actions.follow_up.timing || actions.follow_up.reason || t('followUpDefault'),
       data: actions.follow_up,
       body: [
-        ['Timing', actions.follow_up.timing],
-        ['Reason', actions.follow_up.reason]
+        [t('timing'), actions.follow_up.timing],
+        [t('reason'), actions.follow_up.reason]
       ]
     });
   }
@@ -293,11 +572,11 @@ function extractRecommendedActions(analysisJson = {}) {
       type: 'prescription',
       icon: 'uil-capsule',
       tone: 'medication',
-      title: 'Prescription draft',
-      detail: medications.map(med => med.name).filter(Boolean).join(', ') || 'Medication draft generated',
+      title: t('prescriptionTitle'),
+      detail: medications.map(med => med.name).filter(Boolean).join(', ') || t('prescriptionDefault'),
       data: actions.prescription,
       body: medications.map(med => [
-        med.name || 'Medication',
+        med.name || t('medication'),
         [med.dose, med.frequency, med.duration, med.instructions].filter(Boolean).join(' - ')
       ])
     });
@@ -310,11 +589,11 @@ function extractRecommendedActions(analysisJson = {}) {
       type: 'lab_order',
       icon: 'uil-flask',
       tone: 'lab',
-      title: 'Lab or imaging order',
-      detail: orders.map(order => order.name).filter(Boolean).join(', ') || 'Order draft generated',
+      title: t('labOrderTitle'),
+      detail: orders.map(order => order.name).filter(Boolean).join(', ') || t('labOrderDefault'),
       data: actions.lab_order,
       body: orders.map(order => [
-        order.name || 'Order',
+        order.name || t('order'),
         [order.type, order.priority, order.reason].filter(Boolean).join(' - ')
       ])
     });
@@ -326,13 +605,13 @@ function extractRecommendedActions(analysisJson = {}) {
       type: 'referral',
       icon: 'uil-share-alt',
       tone: 'referral',
-      title: 'Referral draft',
-      detail: actions.referral.specialty || actions.referral.reason || 'Referral draft generated',
+      title: t('referralTitle'),
+      detail: actions.referral.specialty || actions.referral.reason || t('referralDefault'),
       data: actions.referral,
       body: [
-        ['Specialty', actions.referral.specialty],
-        ['Reason', actions.referral.reason],
-        ['Debrief', actions.referral.debrief]
+        [t('specialty'), actions.referral.specialty],
+        [t('reason'), actions.referral.reason],
+        [t('debrief'), actions.referral.debrief]
       ]
     });
   }
@@ -346,8 +625,8 @@ function renderRecommendedActions(actions) {
       <div class="recommended-actions-preview empty-recommended-actions">
         <i class="uil uil-check-circle"></i>
         <div>
-          <strong>No recommended actions generated</strong>
-          <p>Gemini did not return follow-up, prescription, lab order, or referral actions for this test consultation.</p>
+          <strong>${escapeHtml(t('noActionsTitle'))}</strong>
+          <p>${escapeHtml(t('noActionsBody'))}</p>
         </div>
       </div>
     `;
@@ -359,11 +638,11 @@ function renderRecommendedActions(actions) {
         <article class="test-recommended-action action-${action.tone}">
           <div class="recommended-action-icon"><i class="uil ${action.icon}"></i></div>
           <div>
-            <strong>${escapeHtml(action.title)}</strong>
-            <p>${escapeHtml(action.detail)}</p>
+            <strong>${formatBidiText(action.title)}</strong>
+            <p>${formatBidiText(action.detail)}</p>
             ${renderRecommendedActionDetails(action.body)}
             <button type="button" class="print-test-action-btn" data-action-key="${escapeHtml(action.key)}">
-              <i class="uil uil-print"></i> View printable version
+              <i class="uil uil-print"></i> ${escapeHtml(t('printable'))}
             </button>
           </div>
         </article>
@@ -386,6 +665,7 @@ function printTestRecommendedAction(action) {
         <style>
           * { box-sizing: border-box; }
           body { font-family: Arial, sans-serif; margin: 0; padding: 36px; color: #111827; background: #FFFFFF; }
+          .latin-run { direction: ltr; unicode-bidi: isolate; display: inline-block; }
           .print-page { min-height: calc(100vh - 72px); border: 1px solid #E5E7EB; border-radius: 18px; overflow: hidden; }
           .print-header { display: flex; justify-content: space-between; gap: 24px; padding: 28px 32px; background: ${theme.soft}; border-bottom: 4px solid ${theme.color}; }
           .brand { font-size: 13px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; color: ${theme.color}; }
@@ -415,26 +695,26 @@ function printTestRecommendedAction(action) {
         <main class="print-page">
           <header class="print-header">
             <div>
-              <div class="brand">CliNotes Test Page</div>
-              <h1>${escapeHtml(action.title)}</h1>
+              <div class="brand">${escapeHtml(t('printBrand'))}</div>
+              <h1>${formatBidiText(action.title)}</h1>
             </div>
             <div class="print-date">
-              <span class="label">Printed</span>
+              <span class="label">${escapeHtml(t('printed'))}</span>
               ${escapeHtml(printedAt)}
             </div>
           </header>
           <section class="print-body">
             <div class="meta-grid">
-              <div class="meta-item"><span class="label">Doctor</span><strong class="value">TEST Doc</strong></div>
-              <div class="meta-item"><span class="label">Patient</span><strong class="value">TEST Patient</strong></div>
-              <div class="meta-item"><span class="label">Consultation Date</span><strong class="value">${escapeHtml(printedAt)}</strong></div>
+              <div class="meta-item"><span class="label">${escapeHtml(t('doctor'))}</span><strong class="value">TEST Doc</strong></div>
+              <div class="meta-item"><span class="label">${escapeHtml(t('patient'))}</span><strong class="value">TEST Patient</strong></div>
+              <div class="meta-item"><span class="label">${escapeHtml(t('consultationDate'))}</span><strong class="value">${escapeHtml(printedAt)}</strong></div>
             </div>
             ${body}
             <div class="signature-row">
-              <div class="signature-line">Doctor signature</div>
-              <div class="signature-line">Clinic stamp / date</div>
+              <div class="signature-line">${escapeHtml(t('doctorSignature'))}</div>
+              <div class="signature-line">${escapeHtml(t('clinicStamp'))}</div>
             </div>
-            <p class="footer-note">Testing page preview only. Not part of the real app and not written to the database.</p>
+            <p class="footer-note">${escapeHtml(t('printFooter'))}</p>
           </section>
         </main>
       </body>
@@ -451,17 +731,17 @@ function renderPrintableActionDetails(action) {
     const medications = Array.isArray(data.medications) ? data.medications : [];
     return `
       <table>
-        <thead><tr><th>Medication</th><th>Dose</th><th>Frequency</th><th>Duration</th><th>Instructions</th></tr></thead>
+        <thead><tr><th>${escapeHtml(t('medication'))}</th><th>${escapeHtml(t('dose'))}</th><th>${escapeHtml(t('frequency'))}</th><th>${escapeHtml(t('duration'))}</th><th>${escapeHtml(t('instructions'))}</th></tr></thead>
         <tbody>
           ${medications.map(med => `
             <tr>
-              <td>${escapeHtml(med.name || '')}</td>
-              <td>${escapeHtml(med.dose || '')}</td>
-              <td>${escapeHtml(med.frequency || '')}</td>
-              <td>${escapeHtml(med.duration || '')}</td>
-              <td>${escapeHtml(med.instructions || '')}</td>
+              <td>${formatBidiText(med.name || '')}</td>
+              <td>${formatBidiText(med.dose || '')}</td>
+              <td>${formatBidiText(med.frequency || '')}</td>
+              <td>${formatBidiText(med.duration || '')}</td>
+              <td>${formatBidiText(med.instructions || '')}</td>
             </tr>
-          `).join('') || '<tr><td colspan="5">No medications listed.</td></tr>'}
+          `).join('') || `<tr><td colspan="5">${escapeHtml(t('noMedications'))}</td></tr>`}
         </tbody>
       </table>
     `;
@@ -471,16 +751,16 @@ function renderPrintableActionDetails(action) {
     const orders = Array.isArray(data.orders) ? data.orders : [];
     return `
       <table>
-        <thead><tr><th>Type</th><th>Order</th><th>Reason</th><th>Priority</th></tr></thead>
+        <thead><tr><th>${escapeHtml(t('type'))}</th><th>${escapeHtml(t('order'))}</th><th>${escapeHtml(t('reason'))}</th><th>${escapeHtml(t('priority'))}</th></tr></thead>
         <tbody>
           ${orders.map(order => `
             <tr>
-              <td>${escapeHtml(order.type || '')}</td>
-              <td>${escapeHtml(order.name || '')}</td>
-              <td>${escapeHtml(order.reason || '')}</td>
-              <td>${escapeHtml(order.priority || 'Routine')}</td>
+              <td>${formatBidiText(order.type || '')}</td>
+              <td>${formatBidiText(order.name || '')}</td>
+              <td>${formatBidiText(order.reason || '')}</td>
+              <td>${formatBidiText(order.priority || 'Routine')}</td>
             </tr>
-          `).join('') || '<tr><td colspan="4">No orders listed.</td></tr>'}
+          `).join('') || `<tr><td colspan="4">${escapeHtml(t('noOrders'))}</td></tr>`}
         </tbody>
       </table>
     `;
@@ -488,15 +768,15 @@ function renderPrintableActionDetails(action) {
 
   if (action.type === 'referral') {
     return `
-      <section class="section"><h2>Referral Specialty</h2><p>${escapeHtml(data.specialty || '')}</p></section>
-      <section class="section"><h2>Reason for Referral</h2><p>${escapeHtml(data.reason || '')}</p></section>
-      <section class="section"><h2>Patient Debrief for Next Doctor</h2><p>${escapeHtml(data.debrief || '')}</p></section>
+      <section class="section"><h2>${escapeHtml(t('referralSpecialty'))}</h2><p>${formatBidiText(data.specialty || '')}</p></section>
+      <section class="section"><h2>${escapeHtml(t('referralReason'))}</h2><p>${formatBidiText(data.reason || '')}</p></section>
+      <section class="section"><h2>${escapeHtml(t('referralDebrief'))}</h2><p>${formatBidiText(data.debrief || '')}</p></section>
     `;
   }
 
   return `
-    <section class="section"><h2>Follow-up Date / Timing</h2><p>${escapeHtml(data.timing || action.detail || '')}</p></section>
-    <section class="section"><h2>Reason</h2><p>${escapeHtml(data.reason || 'Follow-up consultation')}</p></section>
+    <section class="section"><h2>${escapeHtml(t('followupTiming'))}</h2><p>${formatBidiText(data.timing || action.detail || '')}</p></section>
+    <section class="section"><h2>${escapeHtml(t('reason'))}</h2><p>${formatBidiText(data.reason || t('followUpDefault'))}</p></section>
   `;
 }
 
@@ -517,7 +797,7 @@ function renderRecommendedActionDetails(items = []) {
       ${rows.map(([label, value]) => `
         <div>
           <dt>${escapeHtml(label || 'Detail')}</dt>
-          <dd>${escapeHtml(value || 'Not returned.')}</dd>
+          <dd>${formatBidiText(value || t('notReturned'))}</dd>
         </div>
       `).join('')}
     </dl>
@@ -528,14 +808,14 @@ function renderLabOutput(result) {
   const display = result.doctor_display || {};
   return `
     <section class="output-section">
-      <h3>Participating Doctor Report</h3>
+      <h3>${escapeHtml(t('labReport'))}</h3>
       <div class="lab-grid">
-        ${tile('Headline', display.title)}
-        ${tile('Participants', (display.participants || []).join(', '))}
-        ${tile('Summary', display.summary)}
-        ${tile('Prominent Points', listText(display.prominent_points))}
-        ${tile('Decisions', listText(display.decisions))}
-        ${tile('Action Plan', listText(display.action_plan))}
+        ${tile(t('headline'), display.title)}
+        ${tile(t('participants'), (display.participants || []).join(', '))}
+        ${tile(t('summary'), display.summary)}
+        ${tile(t('prominentPoints'), listText(display.prominent_points))}
+        ${tile(t('decisions'), listText(display.decisions))}
+        ${tile(t('actionPlan'), listText(display.action_plan))}
       </div>
     </section>
     ${renderJsonAndTranscript(result)}
@@ -545,12 +825,12 @@ function renderLabOutput(result) {
 function renderJsonAndTranscript(result) {
   return `
     <section class="output-section">
-      <h3>Gemini JSON</h3>
+      <h3>${escapeHtml(t('geminiJson'))}</h3>
       <pre class="output-json">${escapeHtml(JSON.stringify(result.analysis_json || {}, null, 2))}</pre>
     </section>
     <section class="output-section">
-      <h3>Transcript</h3>
-      <pre class="transcript-box" dir="auto">${escapeHtml(result.transcript_text || 'No transcript returned.')}</pre>
+      <h3>${escapeHtml(t('transcript'))}</h3>
+      <pre class="transcript-box">${formatBidiText(result.transcript_text || t('noTranscript'))}</pre>
     </section>
   `;
 }
@@ -565,23 +845,23 @@ function renderDoctorSoapDraft(doctor) {
 
   return `
     <div class="doctor-soap-draft">
-      <div class="soap-title">${escapeHtml(doctor.title || 'Clinical Consultation Draft')}</div>
+      <div class="soap-title">${formatBidiText(doctor.title || t('soapTitleFallback'))}</div>
       <div class="soap-columns">
         <div class="soap-column">
-          <h4>Subjective</h4>
-          ${soapField('Chief Complaint', doctor.subjective?.chief_complaint)}
-          ${soapField('Medical History', doctor.subjective?.history)}
-          ${soapField('Allergies', doctor.subjective?.allergies)}
-          <h4>Objective</h4>
-          ${soapField('Vitals', formatVitals(doctor.objective?.vitals))}
-          ${soapField('Physical Exam', doctor.objective?.examination)}
+          <h4>${escapeHtml(t('subjective'))}</h4>
+          ${soapField(t('chiefComplaint'), doctor.subjective?.chief_complaint)}
+          ${soapField(t('medicalHistory'), doctor.subjective?.history)}
+          ${soapField(t('allergies'), doctor.subjective?.allergies)}
+          <h4>${escapeHtml(t('objective'))}</h4>
+          ${soapField(t('vitals'), formatVitals(doctor.objective?.vitals))}
+          ${soapField(t('physicalExam'), doctor.objective?.examination)}
         </div>
         <div class="soap-column">
-          <h4>Assessment</h4>
-          ${soapField('Diagnoses', (doctor.assessment?.diagnoses || []).join(', '))}
-          <h4>Plan</h4>
-          ${soapField('Treatment', treatment)}
-          ${soapField('Follow Up', followUp)}
+          <h4>${escapeHtml(t('assessment'))}</h4>
+          ${soapField(t('diagnoses'), (doctor.assessment?.diagnoses || []).join(', '))}
+          <h4>${escapeHtml(t('plan'))}</h4>
+          ${soapField(t('treatment'), treatment)}
+          ${soapField(t('followUp'), followUp)}
         </div>
       </div>
     </div>
@@ -592,17 +872,17 @@ function soapField(label, value) {
   return `
     <div class="soap-field">
       <label>${escapeHtml(label)}</label>
-      <div>${escapeHtml(value || '')}</div>
+      <div>${formatBidiText(value || '')}</div>
     </div>
   `;
 }
 
 function renderDiagnostics(activeIndex = -1, completeAll = false) {
-  els.diagnosticsList.innerHTML = diagnosticSteps.map((step, index) => {
+  els.diagnosticsList.innerHTML = t('diagnosticSteps').map((step, index) => {
     const done = completeAll || index < activeIndex;
     const active = !completeAll && index === activeIndex;
     const icon = done ? 'uil-check-circle' : active ? 'uil-sync uil-spin' : 'uil-circle';
-    return `<div class="diagnostic-row ${done ? 'done' : ''} ${active ? 'active' : ''}"><i class="uil ${icon}"></i>${escapeHtml(step)}</div>`;
+    return `<div class="diagnostic-row ${done ? 'done' : ''} ${active ? 'active' : ''}"><i class="uil ${icon}"></i>${formatBidiText(step)}</div>`;
   }).join('');
 }
 
@@ -614,7 +894,7 @@ function tickTimer() {
 }
 
 function tile(label, value) {
-  return `<div class="display-tile"><strong>${escapeHtml(label)}</strong><p>${escapeHtml(value || 'Not returned.')}</p></div>`;
+  return `<div class="display-tile"><strong>${escapeHtml(label)}</strong><p>${formatBidiText(value || t('notReturned'))}</p></div>`;
 }
 
 function listText(value) {
@@ -635,4 +915,30 @@ function escapeHtml(value) {
   const div = document.createElement('div');
   div.textContent = value === null || value === undefined ? '' : String(value);
   return div.innerHTML;
+}
+
+function formatBidiText(value) {
+  const text = value === null || value === undefined ? '' : String(value);
+  if (state.language !== 'ar') return escapeHtml(text);
+
+  const latinRunPattern = /(\[[^\]\n]*[A-Za-z][^\]\n]*\]|[A-Za-z][A-Za-z0-9+#./:%-]*(?:\s+[A-Za-z0-9+#./:%-]+)*)/g;
+  return text.split(latinRunPattern).map(part => {
+    if (!part) return '';
+    if (/[A-Za-z]/.test(part)) {
+      const trimmed = part.trim();
+      const bracketed = trimmed.startsWith('[') && trimmed.endsWith(']');
+      const safePart = bracketed ? part : part.replace(trimmed, `[${trimmed}]`);
+      return `<bdi dir="ltr" class="latin-run">${escapeHtml(safePart)}</bdi>`;
+    }
+    return escapeHtml(part);
+  }).join('');
+}
+
+function setBidiContent(element, value) {
+  if (!element) return;
+  element.innerHTML = formatBidiText(value);
+}
+
+function t(key) {
+  return copy[state.language]?.[key] ?? copy.en[key] ?? key;
 }
