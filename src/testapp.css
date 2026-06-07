@@ -510,6 +510,11 @@
   display: inline-block;
 }
 
+.mixed-arabic-text {
+  direction: rtl;
+  unicode-bidi: isolate;
+}
+
 .recommended-actions-preview {
   display: grid;
   gap: 10px;

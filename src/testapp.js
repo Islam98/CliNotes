@@ -167,13 +167,13 @@ const copy = {
     testingBadge: 'صفحة اختبار',
     testingDisclaimer: 'هذه ليست جزءا من التطبيق الحقيقي. لا يتم إجراء تسجيل دخول أو تحقق من المريض أو كتابة في قاعدة البيانات هنا.',
     heroEyebrow: 'اختبار مسار المعالجة',
-    heroTitle: 'اختبر تسجيلات [CliNotes] بدون قيود',
-    heroDescription: 'تسجل هذه الصفحة الصوت وترسله عبر مسار [Soniox] و [Gemini] الحالي، ثم تعرض المخرجات التي تظهر عادة للطبيب والمريض.',
+    heroTitle: 'اختبر تسجيلات CliNotes بدون قيود',
+    heroDescription: 'تسجل هذه الصفحة الصوت وترسله عبر مسار Soniox و Gemini الحالي، ثم تعرض المخرجات التي تظهر عادة للطبيب والمريض.',
     consultationMode: 'اختبار استشارة طبيب',
     labsMode: 'اختبار نقاش أطباء',
     consultationTitle: 'اختبار استشارة طبيب',
     labsTitle: 'اختبار نقاش أطباء',
-    consultationSubtitle: 'سجل استشارة تجريبية بين طبيب ومريض. لا حاجة لمسح [QR] أو التحقق من المريض.',
+    consultationSubtitle: 'سجل استشارة تجريبية بين طبيب ومريض. لا حاجة لمسح QR أو التحقق من المريض.',
     labsSubtitle: 'أضف أسماء أطباء تجريبية، وسجل نقاشا داخليا، ثم راجع التقرير الذي سيرسل للأطباء المشاركين.',
     consultationPill: 'استشارة',
     labsPill: 'وضع المختبرات',
@@ -187,19 +187,19 @@ const copy = {
     uploadAudio: 'رفع تسجيل استشارة',
     diagnostics: 'التشخيصات',
     outputTitle: 'المخرجات الناتجة',
-    outputWaiting: 'ستظهر النتائج هنا بعد انتهاء [Soniox] و [Gemini].',
+    outputWaiting: 'ستظهر النتائج هنا بعد انتهاء Soniox و Gemini.',
     emptyOutput: 'اختر الوضع، سجل عينة قصيرة، ثم أوقف التسجيل.',
     uploadLabsOnly: 'رفع الصوت متاح حاليا لاختبار استشارات المرضى فقط.',
     uploadedAudio: 'تم اختيار ملف صوتي',
     preparingAudio: 'جار تجهيز الصوت',
-    processing: 'جار تمرير الصوت عبر [Soniox] و [Gemini]. قد يستغرق ذلك دقيقة.',
+    processing: 'جار تمرير الصوت عبر Soniox و Gemini. قد يستغرق ذلك دقيقة.',
     pipelineRunning: 'المسار قيد التشغيل...',
     pipelineComplete: 'اكتمل مسار الاختبار.',
     pipelineFailed: 'فشل المسار.',
     pipelineError: 'خطأ في المسار',
     microphoneError: 'يلزم السماح بالميكروفون لهذا الاختبار.',
     requestFailed: 'فشل مسار الاختبار.',
-    doctorSoap: 'مسودة [SOAP] للطبيب',
+    doctorSoap: 'مسودة SOAP للطبيب',
     recommendedActions: 'الإجراءات المقترحة',
     patientLanguage: 'شرح مبسط للمريض',
     whatYouCameFor: 'سبب الزيارة',
@@ -207,7 +207,7 @@ const copy = {
     whatDoctorFound: 'ما وجده الطبيب',
     whatHappensNext: 'الخطوات التالية',
     noActionsTitle: 'لم يتم توليد إجراءات مقترحة',
-    noActionsBody: 'لم يرجع [Gemini] إجراءات متابعة أو وصفة أو طلب مختبر أو إحالة لهذه الاستشارة التجريبية.',
+    noActionsBody: 'لم يرجع Gemini إجراءات متابعة أو وصفة أو طلب مختبر أو إحالة لهذه الاستشارة التجريبية.',
     followUpTitle: 'حجز متابعة',
     followUpDefault: 'تم اقتراح متابعة',
     prescriptionTitle: 'مسودة وصفة',
@@ -222,7 +222,7 @@ const copy = {
     debrief: 'ملخص للطبيب التالي',
     detail: 'تفصيل',
     printable: 'عرض النسخة القابلة للطباعة',
-    geminiJson: '[JSON] من [Gemini]',
+    geminiJson: 'JSON من Gemini',
     transcript: 'النص المفرغ',
     noTranscript: 'لم يتم إرجاع نص مفرغ.',
     soapTitleFallback: 'مسودة استشارة سريرية',
@@ -249,12 +249,12 @@ const copy = {
     diagnosticSteps: [
       'تسجيل صوت الميكروفون محليا',
       'رفع صوت الاختبار إلى الخادم',
-      'إرسال الصوت إلى [Soniox]',
+      'إرسال الصوت إلى Soniox',
       'انتظار التفريغ الصوتي',
-      'إرسال النص إلى [Gemini]',
+      'إرسال النص إلى Gemini',
       'عرض مخرجات الاختبار',
     ],
-    printBrand: 'صفحة اختبار [CliNotes]',
+    printBrand: 'صفحة اختبار CliNotes',
     printed: 'تمت الطباعة',
     doctor: 'الطبيب',
     patient: 'المريض',
@@ -666,6 +666,7 @@ function printTestRecommendedAction(action) {
           * { box-sizing: border-box; }
           body { font-family: Arial, sans-serif; margin: 0; padding: 36px; color: #111827; background: #FFFFFF; }
           .latin-run { direction: ltr; unicode-bidi: isolate; display: inline-block; }
+          .mixed-arabic-text { direction: rtl; unicode-bidi: isolate; }
           .print-page { min-height: calc(100vh - 72px); border: 1px solid #E5E7EB; border-radius: 18px; overflow: hidden; }
           .print-header { display: flex; justify-content: space-between; gap: 24px; padding: 28px 32px; background: ${theme.soft}; border-bottom: 4px solid ${theme.color}; }
           .brand { font-size: 13px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; color: ${theme.color}; }
@@ -922,16 +923,14 @@ function formatBidiText(value) {
   if (state.language !== 'ar') return escapeHtml(text);
 
   const latinRunPattern = /(\[[^\]\n]*[A-Za-z][^\]\n]*\]|[A-Za-z][A-Za-z0-9+#./:%-]*(?:\s+[A-Za-z0-9+#./:%-]+)*)/g;
-  return text.split(latinRunPattern).map(part => {
+  const formatted = text.split(latinRunPattern).map(part => {
     if (!part) return '';
     if (/[A-Za-z]/.test(part)) {
-      const trimmed = part.trim();
-      const bracketed = trimmed.startsWith('[') && trimmed.endsWith(']');
-      const safePart = bracketed ? part : part.replace(trimmed, `[${trimmed}]`);
-      return `<bdi dir="ltr" class="latin-run">${escapeHtml(safePart)}</bdi>`;
+      return `<bdi dir="ltr" class="latin-run">${escapeHtml(part)}</bdi>&rlm;`;
     }
     return escapeHtml(part);
   }).join('');
+  return `<span class="mixed-arabic-text" dir="rtl">${formatted}</span>`;
 }
 
 function setBidiContent(element, value) {
