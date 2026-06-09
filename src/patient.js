@@ -740,9 +740,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function formatVitals(vitals) {
-    if (!vitals) return '';
-    if (typeof vitals === 'string') return vitals;
-    return Object.entries(vitals).map(([key, value]) => `${formatLabel(key)}: ${value}`).join(', ');
+    if (!vitals || typeof vitals !== 'object' || Array.isArray(vitals)) return '';
+    const normalized = {
+      blood_pressure: vitals.blood_pressure || vitals.bp || vitals.BP || '',
+      heart_rate: vitals.heart_rate || vitals.pulse || '',
+      temperature: vitals.temperature || vitals.temp || '',
+    };
+    return Object.entries(normalized)
+      .filter(([, value]) => String(value || '').trim())
+      .map(([key, value]) => `${formatLabel(key)}: ${value}`)
+      .join(', ');
   }
 
   function formatLabel(key) {

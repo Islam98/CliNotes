@@ -269,9 +269,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="soap-label">O</div>
           <div class="soap-content">
             <h4>Objective</h4>
-            ${s.objective.vitals ? `
+            ${hasVitalsData(s.objective.vitals) ? `
             <div class="vitals-grid">
-              ${Object.entries(s.objective.vitals).map(([key, val]) => `
+              ${Object.entries(normalizeVitals(s.objective.vitals)).filter(([, val]) => String(val || '').trim()).map(([key, val]) => `
               <div class="vital-item">
                 <span class="vital-label">${escapeHtml(formatLabel(key))}</span>
                 <span class="vital-value">${escapeHtml(String(val))}</span>
@@ -405,6 +405,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function formatLabel(key) {
     return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  function hasVitalsData(vitals) {
+    return Object.values(normalizeVitals(vitals)).some(value => String(value || '').trim());
+  }
+
+  function normalizeVitals(vitals) {
+    if (!vitals || typeof vitals !== 'object' || Array.isArray(vitals)) return {};
+    return {
+      blood_pressure: vitals.blood_pressure || vitals.bp || vitals.BP || '',
+      heart_rate: vitals.heart_rate || vitals.pulse || '',
+      temperature: vitals.temperature || vitals.temp || '',
+    };
   }
 
   function renderTranscriptHtml(markdown, doctorName, patientName) {

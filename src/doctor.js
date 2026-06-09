@@ -1707,7 +1707,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               ${field('review_allergies', 'Allergies', sub.allergies, true)}
               
               <h4 style="color: #3B82F6; border-bottom: 2px solid #E2E8F0; padding-bottom: 8px; margin-bottom: 12px; margin-top: 16px;">Objective</h4>
-              ${field('review_vitals', 'Vitals', obj.vitals)}
+              ${hasVitalsData(obj.vitals) ? field('review_vitals', 'Vitals', formatVitalsForReview(obj.vitals)) : ''}
               ${field('review_pe', 'Physical Exam', obj.physical_exam)}
             </div>
             
@@ -1732,4 +1732,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       alert("Failed to load summary.");
     }
   };
+
+  function hasVitalsData(vitals) {
+    return Object.values(normalizeVitals(vitals)).some(value => String(value || '').trim());
+  }
+
+  function formatVitalsForReview(vitals) {
+    return Object.entries(normalizeVitals(vitals))
+      .filter(([, value]) => String(value || '').trim())
+      .map(([key, value]) => `${key.replace(/_/g, ' ')}: ${value}`)
+      .join(', ');
+  }
+
+  function normalizeVitals(vitals) {
+    if (!vitals || typeof vitals !== 'object' || Array.isArray(vitals)) return {};
+    return {
+      blood_pressure: vitals.blood_pressure || vitals.bp || vitals.BP || '',
+      heart_rate: vitals.heart_rate || vitals.pulse || '',
+      temperature: vitals.temperature || vitals.temp || '',
+    };
+  }
 });

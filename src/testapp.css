@@ -5,6 +5,97 @@
   font-family: var(--font-family);
 }
 
+.testapp-body.locked {
+  overflow: hidden;
+}
+
+.test-password-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  background: rgba(247, 249, 252, 0.96);
+  backdrop-filter: blur(8px);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.test-password-overlay.hidden {
+  display: none;
+}
+
+.test-password-card {
+  width: min(420px, 100%);
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
+  padding: 28px;
+  display: grid;
+  gap: 12px;
+}
+
+.test-password-card h1 {
+  color: var(--text-primary);
+  font-size: 28px;
+  line-height: 1.05;
+  margin-top: 6px;
+}
+
+.test-password-card p {
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.test-password-card label {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+  margin-top: 8px;
+}
+
+.test-password-card input {
+  width: 100%;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  min-height: 48px;
+  padding: 0 14px;
+  font-family: inherit;
+  font-size: 16px;
+}
+
+.test-password-card input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.12);
+}
+
+.test-password-card button {
+  border: none;
+  border-radius: 12px;
+  min-height: 50px;
+  background: var(--primary-color);
+  color: #FFFFFF;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.test-password-card button:disabled {
+  background: #CBD5E1;
+  cursor: wait;
+}
+
+.test-password-error {
+  min-height: 18px;
+  color: #DC2626;
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .testapp-topbar {
   min-height: 68px;
   background: #FFFFFF;

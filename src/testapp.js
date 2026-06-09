@@ -8,9 +8,15 @@ const state = {
   timer: null,
   mockDoctors: ['Dr. Omar Mah', 'Dr. Layla Hassan'],
   lastRecommendedActions: [],
+  testPassword: sessionStorage.getItem('clinotes_test_password') || '',
 };
 
 const els = {
+  testPasswordOverlay: document.getElementById('testPasswordOverlay'),
+  testPasswordForm: document.getElementById('testPasswordForm'),
+  testPasswordInput: document.getElementById('testPasswordInput'),
+  unlockTestPageBtn: document.getElementById('unlockTestPageBtn'),
+  testPasswordError: document.getElementById('testPasswordError'),
   testingBadge: document.getElementById('testingBadge'),
   testingDisclaimer: document.getElementById('testingDisclaimer'),
   englishToggleBtn: document.getElementById('englishToggleBtn'),
@@ -283,7 +289,9 @@ renderStaticText();
 renderMode();
 renderMockDoctors();
 renderDiagnostics();
+initializePasswordGate();
 
+els.testPasswordForm.addEventListener('submit', handlePasswordSubmit);
 els.englishToggleBtn.addEventListener('click', () => setLanguage('en'));
 els.arabicToggleBtn.addEventListener('click', () => setLanguage('ar'));
 els.consultationModeBtn.addEventListener('click', () => setMode('consultation'));
@@ -312,6 +320,62 @@ function setMode(mode) {
   renderDiagnostics();
   els.outputContent.className = 'empty-output';
   els.outputContent.innerHTML = formatBidiText(t('emptyOutput'));
+}
+
+async function initializePasswordGate() {
+  document.body.classList.add('locked');
+  if (!state.testPassword) {
+    els.testPasswordOverlay.classList.remove('hidden');
+    return;
+  }
+
+  try {
+    await verifyTestPassword(state.testPassword);
+    unlockPage();
+  } catch {
+    sessionStorage.removeItem('clinotes_test_password');
+    state.testPassword = '';
+    els.testPasswordOverlay.classList.remove('hidden');
+  }
+}
+
+async function handlePasswordSubmit(event) {
+  event.preventDefault();
+  const password = els.testPasswordInput.value;
+  if (!password) return;
+
+  els.unlockTestPageBtn.disabled = true;
+  els.testPasswordError.textContent = '';
+  try {
+    await verifyTestPassword(password);
+    state.testPassword = password;
+    sessionStorage.setItem('clinotes_test_password', password);
+    unlockPage();
+  } catch (error) {
+    els.testPasswordError.textContent = error.message || 'Invalid password.';
+  } finally {
+    els.unlockTestPageBtn.disabled = false;
+  }
+}
+
+function unlockPage() {
+  els.testPasswordOverlay.classList.add('hidden');
+  document.body.classList.remove('locked');
+}
+
+async function verifyTestPassword(password) {
+  const response = await fetch(`${getServerUrl()}/api/test-auth`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Test-App-Password': password,
+    },
+    body: JSON.stringify({}),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Invalid password.');
+  }
 }
 
 function setLanguage(language) {
@@ -486,7 +550,7 @@ async function runPipeline(audioBlob) {
 }
 
 async function submitAudio(audioBlob) {
-  const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+  const serverUrl = getServerUrl();
   const languageQuery = `language=${encodeURIComponent(state.language)}`;
   const endpoint = state.mode === 'labs'
     ? `${serverUrl}/api/test/lab-discussion?participants=${encodeURIComponent(state.mockDoctors.join(','))}&${languageQuery}`
@@ -494,7 +558,10 @@ async function submitAudio(audioBlob) {
 
   const response = await fetch(endpoint, {
     method: 'POST',
-    headers: { 'Content-Type': audioBlob.type || 'audio/webm' },
+    headers: {
+      'Content-Type': audioBlob.type || 'audio/webm',
+      'X-Test-App-Password': state.testPassword,
+    },
     body: audioBlob,
   });
 
@@ -508,6 +575,11 @@ async function submitAudio(audioBlob) {
 
   if (!response.ok) throw new Error(data.error || t('requestFailed'));
   return data;
+}
+
+function getServerUrl() {
+  if (import.meta.env.VITE_SERVER_URL) return import.meta.env.VITE_SERVER_URL;
+  return window.location.port === '5173' ? 'http://localhost:3000' : window.location.origin;
 }
 
 function renderOutput(result) {
@@ -854,7 +926,7 @@ function renderDoctorSoapDraft(doctor) {
           ${soapField(t('medicalHistory'), doctor.subjective?.history)}
           ${soapField(t('allergies'), doctor.subjective?.allergies)}
           <h4>${escapeHtml(t('objective'))}</h4>
-          ${soapField(t('vitals'), formatVitals(doctor.objective?.vitals))}
+          ${hasVitalsData(doctor.objective?.vitals) ? soapField(t('vitals'), formatVitals(doctor.objective?.vitals)) : ''}
           ${soapField(t('physicalExam'), doctor.objective?.examination)}
         </div>
         <div class="soap-column">
@@ -907,9 +979,24 @@ function listText(value) {
 }
 
 function formatVitals(vitals) {
-  if (!vitals) return '';
-  if (typeof vitals === 'string') return vitals;
-  return Object.entries(vitals).map(([key, value]) => `${key}: ${value}`).join(', ');
+  if (!hasVitalsData(vitals)) return '';
+  return Object.entries(normalizeVitals(vitals))
+    .filter(([, value]) => String(value || '').trim())
+    .map(([key, value]) => `${key.replace(/_/g, ' ')}: ${value}`)
+    .join(', ');
+}
+
+function hasVitalsData(vitals) {
+  return Object.values(normalizeVitals(vitals)).some(value => String(value || '').trim());
+}
+
+function normalizeVitals(vitals) {
+  if (!vitals || typeof vitals !== 'object' || Array.isArray(vitals)) return {};
+  return {
+    blood_pressure: vitals.blood_pressure || vitals.bp || vitals.BP || '',
+    heart_rate: vitals.heart_rate || vitals.pulse || '',
+    temperature: vitals.temperature || vitals.temp || '',
+  };
 }
 
 function escapeHtml(value) {

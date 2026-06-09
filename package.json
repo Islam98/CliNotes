@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "server": "node server.js"
+    "server": "node server.js",
+    "test-server": "node test-server.js",
+    "start": "node test-server.js"
   },
   "devDependencies": {
     "vite": "^8.0.10"

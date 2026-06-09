@@ -12,6 +12,19 @@
   <link rel="stylesheet" href="/src/testapp.css">
 </head>
 <body class="testapp-body">
+  <div class="test-password-overlay" id="testPasswordOverlay">
+    <form class="test-password-card" id="testPasswordForm">
+      <a href="/" class="testapp-logo">CliNotes</a>
+      <span class="testapp-badge">Testing Page</span>
+      <h1>Protected test access</h1>
+      <p>Enter the testing password provided by the CliNotes team.</p>
+      <label for="testPasswordInput">Password</label>
+      <input id="testPasswordInput" type="password" autocomplete="current-password" required>
+      <button type="submit" id="unlockTestPageBtn">Unlock testing page</button>
+      <span class="test-password-error" id="testPasswordError"></span>
+    </form>
+  </div>
+
   <header class="testapp-topbar">
     <div>
       <a href="/" class="testapp-logo">CliNotes</a>

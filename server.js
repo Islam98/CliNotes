@@ -10,6 +10,7 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3000;
+const testAppPassword = process.env.TEST_APP_PASSWORD;
 
 app.use(cors());
 app.use(express.json());
@@ -267,6 +268,7 @@ function buildDoctorSoapDisplay(aiResult) {
   const subjective = structured.subjective || {};
   const objective = structured.objective || {};
   const assessment = structured.assessment || {};
+  const vitals = normalizeVitalsForDisplay(objective.vitals);
 
   return {
     title: structured.title || 'Clinical Consultation Draft',
@@ -278,7 +280,7 @@ function buildDoctorSoapDisplay(aiResult) {
       notes: subjective.notes || '',
     },
     objective: {
-      vitals: typeof objective.vitals === 'object' ? objective.vitals : { notes: objective.vitals || '' },
+      ...(vitals ? { vitals } : {}),
       examination: objective.examination || objective.physical_exam || '',
     },
     assessment: {
@@ -287,6 +289,16 @@ function buildDoctorSoapDisplay(aiResult) {
     },
     plan: normalizePlanItemsForDisplay(structured.plan),
   };
+}
+
+function normalizeVitalsForDisplay(vitals) {
+  if (!vitals || typeof vitals !== 'object' || Array.isArray(vitals)) return null;
+  const normalized = {
+    blood_pressure: vitals.blood_pressure || vitals.bp || vitals.BP || '',
+    heart_rate: vitals.heart_rate || vitals.pulse || '',
+    temperature: vitals.temperature || vitals.temp || '',
+  };
+  return Object.values(normalized).some(value => String(value || '').trim()) ? normalized : null;
 }
 
 function getCleanedTranscript(aiResult, fallbackText = '') {
@@ -421,6 +433,21 @@ function renderTranscriptMarkdown(tokens, transcriptionMeta = {}) {
 // ==========================================
 // API ROUTES
 // ==========================================
+
+function requireTestAppPassword(req, res, next) {
+  if (!testAppPassword) {
+    return res.status(500).json({ error: 'TEST_APP_PASSWORD is not configured on the server.' });
+  }
+  const provided = req.headers['x-test-app-password'];
+  if (!provided || provided !== testAppPassword) {
+    return res.status(401).json({ error: 'Invalid testing password.' });
+  }
+  next();
+}
+
+app.post('/api/test-auth', requireTestAppPassword, (req, res) => {
+  res.json({ ok: true });
+});
 
 // ─── New: Raw Audio Upload Endpoint (Bypass RLS) ───
 app.post('/api/upload-audio/:consultationId', express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '50mb' }), async (req, res) => {
@@ -786,7 +813,7 @@ app.post('/api/patient-summary', async (req, res) => {
   }
 });
 
-app.post('/api/test/consultation', express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '50mb' }), async (req, res) => {
+app.post('/api/test/consultation', requireTestAppPassword, express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '50mb' }), async (req, res) => {
   if (!SONIOX_API_KEY || SONIOX_API_KEY === 'your_soniox_api_key_here') {
     return res.status(500).json({ error: 'Soniox API key is not configured on the server.' });
   }
@@ -818,7 +845,7 @@ app.post('/api/test/consultation', express.raw({ type: ['audio/*', 'application/
   }
 });
 
-app.post('/api/test/lab-discussion', express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '50mb' }), async (req, res) => {
+app.post('/api/test/lab-discussion', requireTestAppPassword, express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '50mb' }), async (req, res) => {
   if (!SONIOX_API_KEY || SONIOX_API_KEY === 'your_soniox_api_key_here') {
     return res.status(500).json({ error: 'Soniox API key is not configured on the server.' });
   }
