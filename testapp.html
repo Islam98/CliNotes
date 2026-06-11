@@ -80,6 +80,23 @@
           </div>
         </div>
 
+        <div class="model-picker">
+          <div>
+            <span id="modelPickerLabel">Gemini model</span>
+            <p id="modelPickerHint">Choose better analysis or faster results for this test run.</p>
+          </div>
+          <div class="model-toggle" aria-label="Gemini model">
+            <button type="button" id="gemini35Btn" class="active">
+              <strong id="gemini35Label">Better analysis</strong>
+              <span>Gemini 3.5 Flash</span>
+            </button>
+            <button type="button" id="gemini31LiteBtn">
+              <strong id="gemini31LiteLabel">Faster results</strong>
+              <span>Gemini 3.1 Flash Lite</span>
+            </button>
+          </div>
+        </div>
+
         <div class="recording-console">
           <div class="recording-readout">
             <span class="recording-dot" id="recordingDot"></span>
@@ -111,6 +128,10 @@
             <h2 id="outputTitle">Generated Output</h2>
             <p id="outputSubtitle">Results appear here after Soniox and Gemini finish.</p>
           </div>
+          <button type="button" class="download-results-btn" id="downloadResultsBtn" disabled>
+            <i class="uil uil-download-alt"></i>
+            <span id="downloadResultsLabel">Download results</span>
+          </button>
         </div>
         <div id="outputContent" class="empty-output">
           Choose a mode, record a short sample, then stop the recording.

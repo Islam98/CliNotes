@@ -25,6 +25,7 @@ app.use(express.json());
 // ─── Gemini Client ───
 const geminiApiKey = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
+const TEST_GEMINI_MODELS = new Set(['gemini-3.5-flash', 'gemini-3.1-flash-lite']);
 let gemini;
 if (geminiApiKey && geminiApiKey !== 'your_gemini_api_key_here') {
   gemini = new GoogleGenerativeAI(geminiApiKey);
@@ -522,13 +523,13 @@ app.post('/api/upload-audio/:consultationId', express.raw({ type: ['audio/*', 'a
 //   ... (commented out)
 // }
 
-async function parseGeminiJsonResponse(response, contextLabel = 'Gemini response') {
+async function parseGeminiJsonResponse(response, contextLabel = 'Gemini response', geminiModel = GEMINI_MODEL) {
   const rawText = response.response.text();
   try {
     return JSON.parse(extractJsonCandidate(rawText));
   } catch (initialError) {
     console.warn(`[Gemini] Invalid JSON for ${contextLabel}: ${initialError.message}`);
-    const repairedText = await repairGeminiJson(rawText, initialError.message, contextLabel);
+    const repairedText = await repairGeminiJson(rawText, initialError.message, contextLabel, geminiModel);
     try {
       return JSON.parse(extractJsonCandidate(repairedText));
     } catch (repairError) {
@@ -550,7 +551,7 @@ function extractJsonCandidate(text = '') {
   return candidate;
 }
 
-async function repairGeminiJson(rawText, parseError, contextLabel) {
+async function repairGeminiJson(rawText, parseError, contextLabel, geminiModel = GEMINI_MODEL) {
   if (!gemini) throw new Error(`${contextLabel} returned invalid JSON: ${parseError}`);
 
   const repairPrompt = `
@@ -566,7 +567,7 @@ ${rawText}
 `;
 
   const repairModel = gemini.getGenerativeModel({
-    model: GEMINI_MODEL,
+    model: geminiModel,
     generationConfig: {
       temperature: 0,
       responseMimeType: "application/json",
@@ -588,10 +589,22 @@ function getGeminiOutputLanguageInstructions(outputLanguage = 'en', mode = 'cons
     return 'Write all report display values in Arabic, including summary_text, title, prominent_points, decisions, open_questions, and action_plan values. Keep JSON keys exactly as specified in English. Only disease names and diagnosis names should remain in English inside square brackets, e.g. [diabetes], [pneumonia]. Do not put lab names, imaging names, abbreviations, drug names, doctor names, or general English technical terms inside brackets unless they are disease or diagnosis names. Translate non-diagnosis explanatory text into Arabic.';
   }
 
-  return 'Write all human-readable display values in Arabic, including summary_text, title, SOAP field values, plan values, recommended action reasons/timing/instructions, and patient_summary. Keep JSON keys and status values exactly as specified in English. Only disease names and diagnosis names should remain in English inside square brackets, e.g. [asthma], [diabetes], [hypertension]. Do not put lab names, imaging names, abbreviations, drug names, doctor names, or general English technical terms inside brackets unless they are disease or diagnosis names. Keep medication/drug names in English or their usual Latin brand/generic spelling; do not translate drug names, but do not bracket them. Translate medication instructions, frequency, duration, follow-up explanations, lab order reasons, and referral debriefs into Arabic.';
+  return `Write every human-readable consultation value in natural Modern Standard Arabic, including summary_text, title, all SOAP field values, plan labels, plan values, recommended action reasons/timing/instructions, and patient_summary. Keep JSON keys and status values exactly as specified in English.
+For SOAP notes specifically, do not leave ordinary explanatory text in English. Use Arabic phrasing that sounds natural to a clinician.
+The only exceptions inside Arabic SOAP notes are disease/diagnosis names and medication names:
+- Disease/diagnosis names must be written in Arabic followed by the English name in square brackets, e.g. "السكري [diabetes]", "الربو [asthma]", "ارتفاع ضغط الدم [hypertension]".
+- Medication names must be written in Arabic or common Arabic transliteration followed by the English generic/brand name in square brackets, e.g. "باراسيتامول [Paracetamol]", "ميتفورمين [Metformin]".
+Do not use English-only disease names or English-only medication names in Arabic mode.
+Do not bracket lab names, imaging names, abbreviations, doctor names, general technical terms, timings, frequencies, or instructions unless they are a disease/diagnosis or medication name. Translate those into Arabic where possible.
+For plan.label in Arabic mode, use concise Arabic labels such as "دواء", "تحاليل", "أشعة", "متابعة", or "إحالة".`;
 }
 
-async function analyzeTranscriptWithGemini(transcriptText, { outputLanguage = 'en' } = {}) {
+function getRequestedGeminiModel(req) {
+  const requestedModel = String(req.query.model || '').trim();
+  return TEST_GEMINI_MODELS.has(requestedModel) ? requestedModel : GEMINI_MODEL;
+}
+
+async function analyzeTranscriptWithGemini(transcriptText, { outputLanguage = 'en', geminiModel = GEMINI_MODEL } = {}) {
   if (!gemini) {
     throw new Error("Gemini API key is missing or invalid on the server.");
   }
@@ -682,7 +695,7 @@ Ensure the output is strictly valid JSON and nothing else. All line breaks insid
 `;
 
   const model = gemini.getGenerativeModel({
-    model: GEMINI_MODEL,
+    model: geminiModel,
     systemInstruction: systemPrompt,
     generationConfig: {
       temperature: 0.2,
@@ -691,10 +704,10 @@ Ensure the output is strictly valid JSON and nothing else. All line breaks insid
   });
 
   const response = await model.generateContent(transcriptText);
-  return parseGeminiJsonResponse(response, 'consultation analysis');
+  return parseGeminiJsonResponse(response, 'consultation analysis', geminiModel);
 }
 
-async function analyzeLabDiscussionWithGemini(transcriptText, { outputLanguage = 'en' } = {}) {
+async function analyzeLabDiscussionWithGemini(transcriptText, { outputLanguage = 'en', geminiModel = GEMINI_MODEL } = {}) {
   if (!gemini) {
     throw new Error("Gemini API key is missing or invalid on the server.");
   }
@@ -722,7 +735,7 @@ Ensure all line breaks inside string values, especially cleaned_transcript, are 
 `;
 
   const model = gemini.getGenerativeModel({
-    model: GEMINI_MODEL,
+    model: geminiModel,
     systemInstruction: systemPrompt,
     generationConfig: {
       temperature: 0.2,
@@ -731,7 +744,7 @@ Ensure all line breaks inside string values, especially cleaned_transcript, are 
   });
 
   const response = await model.generateContent(transcriptText);
-  return parseGeminiJsonResponse(response, 'lab discussion analysis');
+  return parseGeminiJsonResponse(response, 'lab discussion analysis', geminiModel);
 }
 
 async function generatePatientSummaryWithGemini(structuredData) {
@@ -826,15 +839,17 @@ app.post('/api/test/consultation', requireTestAppPassword, express.raw({ type: [
 
   try {
     const outputLanguage = req.query.language === 'ar' ? 'ar' : 'en';
+    const geminiModel = getRequestedGeminiModel(req);
     const result = await runTestAudioPipeline(req.body, {
       filename: `test-consultation-${Date.now()}.webm`,
       transcriptionConfig: fileId => buildTranscriptionConfig(fileId),
-      analyze: transcriptText => analyzeTranscriptWithGemini(transcriptText, { outputLanguage }),
+      analyze: transcriptText => analyzeTranscriptWithGemini(transcriptText, { outputLanguage, geminiModel }),
     });
 
     res.json({
       mode: 'doctor_patient_consultation_test',
       output_language: outputLanguage,
+      gemini_model: geminiModel,
       ...result,
       doctor_display: buildDoctorSoapDisplay(result.analysis_json),
       patient_display: buildPatientDisplay(result.analysis_json),
@@ -864,15 +879,17 @@ app.post('/api/test/lab-discussion', requireTestAppPassword, express.raw({ type:
 
   try {
     const outputLanguage = req.query.language === 'ar' ? 'ar' : 'en';
+    const geminiModel = getRequestedGeminiModel(req);
     const result = await runTestAudioPipeline(req.body, {
       filename: `test-lab-discussion-${Date.now()}.webm`,
       transcriptionConfig: fileId => buildLabDiscussionTranscriptionConfig(fileId, participants),
-      analyze: transcriptText => analyzeLabDiscussionWithGemini(transcriptText, { outputLanguage }),
+      analyze: transcriptText => analyzeLabDiscussionWithGemini(transcriptText, { outputLanguage, geminiModel }),
     });
 
     res.json({
       mode: 'doctor_discussion_test',
       output_language: outputLanguage,
+      gemini_model: geminiModel,
       ...result,
       doctor_display: buildLabDoctorDisplay(result.analysis_json, participants.map(p => p.name)),
     });

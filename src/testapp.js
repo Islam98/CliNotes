@@ -1,6 +1,7 @@
 const state = {
   mode: 'consultation',
   language: 'en',
+  geminiModel: 'gemini-3.5-flash',
   mediaRecorder: null,
   stream: null,
   chunks: [],
@@ -8,6 +9,7 @@ const state = {
   timer: null,
   mockDoctors: ['Dr. Omar Mah', 'Dr. Layla Hassan'],
   lastRecommendedActions: [],
+  lastResult: null,
   testPassword: sessionStorage.getItem('clinotes_test_password') || '',
 };
 
@@ -32,6 +34,12 @@ const els = {
   modeSubtitle: document.getElementById('modeSubtitle'),
   modePill: document.getElementById('modePill'),
   labsFields: document.getElementById('labsFields'),
+  modelPickerLabel: document.getElementById('modelPickerLabel'),
+  modelPickerHint: document.getElementById('modelPickerHint'),
+  gemini35Btn: document.getElementById('gemini35Btn'),
+  gemini35Label: document.getElementById('gemini35Label'),
+  gemini31LiteBtn: document.getElementById('gemini31LiteBtn'),
+  gemini31LiteLabel: document.getElementById('gemini31LiteLabel'),
   mockDoctorsLabel: document.getElementById('mockDoctorsLabel'),
   mockDoctorsInput: document.getElementById('mockDoctorsInput'),
   addMockDoctorBtn: document.getElementById('addMockDoctorBtn'),
@@ -52,6 +60,8 @@ const els = {
   outputTitle: document.getElementById('outputTitle'),
   outputContent: document.getElementById('outputContent'),
   outputSubtitle: document.getElementById('outputSubtitle'),
+  downloadResultsBtn: document.getElementById('downloadResultsBtn'),
+  downloadResultsLabel: document.getElementById('downloadResultsLabel'),
 };
 
 const copy = {
@@ -69,6 +79,10 @@ const copy = {
     labsSubtitle: 'Add mock doctor names, record an internal discussion, and inspect the report that would be sent to participating doctors.',
     consultationPill: 'Consultation',
     labsPill: 'Labs Mode',
+    modelPicker: 'Gemini model',
+    modelPickerHint: 'Choose better analysis or faster results for this test run.',
+    betterAnalysis: 'Better analysis',
+    fasterResults: 'Faster results',
     mockDoctors: 'Mock participating doctors',
     add: 'Add',
     ready: 'Ready to record',
@@ -80,6 +94,7 @@ const copy = {
     diagnostics: 'Diagnostics',
     outputTitle: 'Generated Output',
     outputWaiting: 'Results appear here after Soniox and Gemini finish.',
+    downloadResults: 'Download results',
     emptyOutput: 'Choose a mode, record a short sample, then stop the recording.',
     uploadLabsOnly: 'Audio upload is currently available for patient consultation testing only.',
     uploadedAudio: 'Uploaded audio selected',
@@ -93,6 +108,7 @@ const copy = {
     requestFailed: 'The test pipeline failed.',
     doctorSoap: 'Doctor SOAP Draft',
     recommendedActions: 'Recommended Actions',
+    consultationSummary: 'Consultation Summary',
     patientLanguage: 'Patient-Side Simple Language',
     whatYouCameFor: 'What you came for',
     whatWasDiscussed: 'What was discussed',
@@ -126,6 +142,10 @@ const copy = {
     medicalHistory: 'Medical History',
     allergies: 'Allergies',
     vitals: 'Vitals',
+    noVitalsRecorded: 'No vitals were recorded.',
+    bloodPressure: 'Blood pressure',
+    heartRate: 'Heart rate',
+    temperature: 'Temperature',
     physicalExam: 'Physical Exam',
     diagnoses: 'Diagnoses',
     treatment: 'Treatment',
@@ -171,97 +191,107 @@ const copy = {
   },
   ar: {
     testingBadge: 'صفحة اختبار',
-    testingDisclaimer: 'هذه ليست جزءا من التطبيق الحقيقي. لا يتم إجراء تسجيل دخول أو تحقق من المريض أو كتابة في قاعدة البيانات هنا.',
+    testingDisclaimer: 'هذه صفحة اختبار فقط، وليست جزءا من التطبيق الحقيقي. لا يتم تسجيل الدخول فعليا، ولا التحقق من المريض، ولا حفظ أي بيانات في قاعدة البيانات هنا.',
     heroEyebrow: 'اختبار مسار المعالجة',
-    heroTitle: 'اختبر تسجيلات CliNotes بدون قيود',
-    heroDescription: 'تسجل هذه الصفحة الصوت وترسله عبر مسار Soniox و Gemini الحالي، ثم تعرض المخرجات التي تظهر عادة للطبيب والمريض.',
+    heroTitle: 'جرّب تسجيلات CliNotes بحرية ومن دون قيود',
+    heroDescription: 'تسجل هذه الصفحة الصوت وترسله عبر مسار Soniox و Gemini الحالي، ثم تعرض النتائج التي تظهر عادة للطبيب والمريض.',
     consultationMode: 'اختبار استشارة طبيب',
-    labsMode: 'اختبار نقاش أطباء',
+    labsMode: 'اختبار نقاش بين الأطباء',
     consultationTitle: 'اختبار استشارة طبيب',
-    labsTitle: 'اختبار نقاش أطباء',
-    consultationSubtitle: 'سجل استشارة تجريبية بين طبيب ومريض. لا حاجة لمسح QR أو التحقق من المريض.',
-    labsSubtitle: 'أضف أسماء أطباء تجريبية، وسجل نقاشا داخليا، ثم راجع التقرير الذي سيرسل للأطباء المشاركين.',
+    labsTitle: 'اختبار نقاش بين الأطباء',
+    consultationSubtitle: 'سجل استشارة تجريبية بين طبيب ومريض. لا حاجة إلى مسح QR أو البحث عن المريض.',
+    labsSubtitle: 'أضف أسماء أطباء افتراضيين، وسجل نقاشا داخليا، ثم راجع التقرير الذي سيرسل إلى الأطباء المشاركين.',
     consultationPill: 'استشارة',
-    labsPill: 'وضع المختبرات',
-    mockDoctors: 'الأطباء المشاركون تجريبيا',
+    labsPill: 'نقاش أطباء',
+    modelPicker: 'نموذج Gemini',
+    modelPickerHint: 'اختر بين تحليل أدق أو نتائج أسرع لهذا الاختبار.',
+    betterAnalysis: 'تحليل أدق',
+    fasterResults: 'نتائج أسرع',
+    mockDoctors: 'أطباء مشاركون في الاختبار',
     add: 'إضافة',
     ready: 'جاهز للتسجيل',
     recordingConsultation: 'جار تسجيل الاستشارة',
     recordingLabs: 'جار تسجيل نقاش الأطباء',
-    startRecording: 'بدء التسجيل',
-    stopRecording: 'إيقاف وتشغيل المسار',
-    uploadAudio: 'رفع تسجيل استشارة',
-    diagnostics: 'التشخيصات',
-    outputTitle: 'المخرجات الناتجة',
+    startRecording: 'ابدأ التسجيل',
+    stopRecording: 'إيقاف وتشغيل التحليل',
+    uploadAudio: 'ارفع تسجيل استشارة',
+    diagnostics: 'متابعة التشغيل',
+    outputTitle: 'النتائج',
     outputWaiting: 'ستظهر النتائج هنا بعد انتهاء Soniox و Gemini.',
-    emptyOutput: 'اختر الوضع، سجل عينة قصيرة، ثم أوقف التسجيل.',
-    uploadLabsOnly: 'رفع الصوت متاح حاليا لاختبار استشارات المرضى فقط.',
+    downloadResults: 'تنزيل النتائج',
+    emptyOutput: 'اختر نوع الاختبار، وسجل عينة قصيرة، ثم أوقف التسجيل.',
+    uploadLabsOnly: 'رفع التسجيلات متاح حاليا لاختبار استشارات المرضى فقط.',
     uploadedAudio: 'تم اختيار ملف صوتي',
     preparingAudio: 'جار تجهيز الصوت',
-    processing: 'جار تمرير الصوت عبر Soniox و Gemini. قد يستغرق ذلك دقيقة.',
-    pipelineRunning: 'المسار قيد التشغيل...',
-    pipelineComplete: 'اكتمل مسار الاختبار.',
-    pipelineFailed: 'فشل المسار.',
-    pipelineError: 'خطأ في المسار',
-    microphoneError: 'يلزم السماح بالميكروفون لهذا الاختبار.',
+    processing: 'جار تمرير الصوت عبر Soniox و Gemini. قد يستغرق ذلك دقيقة تقريبا.',
+    pipelineRunning: 'التحليل قيد التشغيل...',
+    pipelineComplete: 'اكتمل اختبار التحليل.',
+    pipelineFailed: 'التحليل فشل.',
+    pipelineError: 'خطأ في التحليل',
+    microphoneError: 'يجب السماح باستخدام الميكروفون لتشغيل هذا الاختبار.',
     requestFailed: 'فشل مسار الاختبار.',
-    doctorSoap: 'مسودة SOAP للطبيب',
-    recommendedActions: 'الإجراءات المقترحة',
+    doctorSoap: 'مسودة ملاحظات الطبيب',
+    recommendedActions: 'إجراءات مقترحة',
+    consultationSummary: 'ملخص الاستشارة',
     patientLanguage: 'شرح مبسط للمريض',
     whatYouCameFor: 'سبب الزيارة',
-    whatWasDiscussed: 'ما تمت مناقشته',
-    whatDoctorFound: 'ما وجده الطبيب',
-    whatHappensNext: 'الخطوات التالية',
-    noActionsTitle: 'لم يتم توليد إجراءات مقترحة',
-    noActionsBody: 'لم يرجع Gemini إجراءات متابعة أو وصفة أو طلب مختبر أو إحالة لهذه الاستشارة التجريبية.',
+    whatWasDiscussed: 'ما الذي تمت مناقشته',
+    whatDoctorFound: 'ما الذي لاحظه الطبيب',
+    whatHappensNext: 'الخطوة التالية',
+    noActionsTitle: 'لا توجد إجراءات مقترحة',
+    noActionsBody: 'لم يرجع Gemini متابعة أو وصفة أو طلب تحاليل/أشعة أو تحويل إلى تخصص آخر في هذا الاختبار.',
     followUpTitle: 'حجز متابعة',
-    followUpDefault: 'تم اقتراح متابعة',
-    prescriptionTitle: 'مسودة وصفة',
-    prescriptionDefault: 'تم توليد مسودة دواء',
-    labOrderTitle: 'طلب مختبر أو تصوير',
-    labOrderDefault: 'تم توليد مسودة طلب',
-    referralTitle: 'مسودة إحالة',
-    referralDefault: 'تم توليد مسودة إحالة',
-    timing: 'التوقيت',
+    followUpDefault: 'توجد متابعة مقترحة',
+    prescriptionTitle: 'مسودة روشتة',
+    prescriptionDefault: 'تم إنشاء مسودة دواء',
+    labOrderTitle: 'طلب تحاليل أو أشعة',
+    labOrderDefault: 'تم إنشاء مسودة طلب',
+    referralTitle: 'مسودة تحويل',
+    referralDefault: 'تم إنشاء مسودة تحويل',
+    timing: 'الموعد',
     reason: 'السبب',
     specialty: 'التخصص',
     debrief: 'ملخص للطبيب التالي',
-    detail: 'تفصيل',
-    printable: 'عرض النسخة القابلة للطباعة',
+    detail: 'التفاصيل',
+    printable: 'اعرض نسخة الطباعة',
     geminiJson: 'JSON من Gemini',
-    transcript: 'النص المفرغ',
-    noTranscript: 'لم يتم إرجاع نص مفرغ.',
-    soapTitleFallback: 'مسودة استشارة سريرية',
-    subjective: 'ذاتي',
-    objective: 'موضوعي',
-    assessment: 'التقييم',
+    transcript: 'نص التسجيل',
+    noTranscript: 'لم يتم إرجاع نص للتسجيل.',
+    soapTitleFallback: 'مسودة استشارة طبية',
+    subjective: 'كلام المريض',
+    objective: 'الفحص والبيانات',
+    assessment: 'تقييم الطبيب',
     plan: 'الخطة',
-    chiefComplaint: 'الشكوى الرئيسية',
+    chiefComplaint: 'الشكوى الأساسية',
     medicalHistory: 'التاريخ المرضي',
     allergies: 'الحساسية',
     vitals: 'العلامات الحيوية',
+    noVitalsRecorded: 'لم يتم تسجيل علامات حيوية.',
+    bloodPressure: 'ضغط الدم',
+    heartRate: 'معدل النبض',
+    temperature: 'درجة الحرارة',
     physicalExam: 'الفحص السريري',
     diagnoses: 'التشخيصات',
     treatment: 'العلاج',
     followUp: 'المتابعة',
-    labReport: 'تقرير الطبيب المشارك',
+    labReport: 'تقرير النقاش للأطباء',
     headline: 'العنوان',
-    participants: 'المشاركون',
+    participants: 'المشاركين',
     summary: 'الملخص',
-    prominentPoints: 'النقاط الأبرز',
+    prominentPoints: 'أهم النقط',
     decisions: 'القرارات',
     actionPlan: 'خطة العمل',
     notReturned: 'غير متوفر.',
     diagnosticSteps: [
-      'تسجيل صوت الميكروفون محليا',
-      'رفع صوت الاختبار إلى الخادم',
+      'تسجيل الصوت من الميكروفون',
+      'رفع تسجيل الاختبار إلى الخادم',
       'إرسال الصوت إلى Soniox',
-      'انتظار التفريغ الصوتي',
+      'استلام نص التسجيل',
       'إرسال النص إلى Gemini',
-      'عرض مخرجات الاختبار',
+      'عرض نتائج الاختبار',
     ],
     printBrand: 'صفحة اختبار CliNotes',
-    printed: 'تمت الطباعة',
+    printed: 'تاريخ الطباعة',
     doctor: 'الطبيب',
     patient: 'المريض',
     consultationDate: 'تاريخ الاستشارة',
@@ -273,15 +303,15 @@ const copy = {
     type: 'النوع',
     order: 'الطلب',
     priority: 'الأولوية',
-    noMedications: 'لا توجد أدوية مدرجة.',
-    noOrders: 'لا توجد طلبات مدرجة.',
+    noMedications: 'لا توجد أدوية مضافة.',
+    noOrders: 'لا توجد طلبات مضافة.',
     referralSpecialty: 'تخصص الإحالة',
     referralReason: 'سبب الإحالة',
     referralDebrief: 'ملخص المريض للطبيب التالي',
-    followupTiming: 'تاريخ / توقيت المتابعة',
+    followupTiming: 'تاريخ / معاد المتابعة',
     doctorSignature: 'توقيع الطبيب',
     clinicStamp: 'ختم العيادة / التاريخ',
-    printFooter: 'معاينة من صفحة الاختبار فقط. ليست جزءا من التطبيق الحقيقي ولا يتم حفظها في قاعدة البيانات.',
+    printFooter: 'هذه معاينة من صفحة الاختبار فقط. ليست جزءا من التطبيق الحقيقي ولا يتم حفظها في قاعدة البيانات.',
   }
 };
 
@@ -294,8 +324,11 @@ initializePasswordGate();
 els.testPasswordForm.addEventListener('submit', handlePasswordSubmit);
 els.englishToggleBtn.addEventListener('click', () => setLanguage('en'));
 els.arabicToggleBtn.addEventListener('click', () => setLanguage('ar'));
+els.gemini35Btn.addEventListener('click', () => setGeminiModel('gemini-3.5-flash'));
+els.gemini31LiteBtn.addEventListener('click', () => setGeminiModel('gemini-3.1-flash-lite'));
 els.consultationModeBtn.addEventListener('click', () => setMode('consultation'));
 els.labsModeBtn.addEventListener('click', () => setMode('labs'));
+els.downloadResultsBtn.addEventListener('click', downloadDisplayedResults);
 els.addMockDoctorBtn.addEventListener('click', addMockDoctor);
 els.mockDoctorsInput.addEventListener('keydown', event => {
   if (event.key === 'Enter') {
@@ -316,10 +349,12 @@ els.outputContent.addEventListener('click', event => {
 function setMode(mode) {
   if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') return;
   state.mode = mode;
+  state.lastResult = null;
   renderMode();
   renderDiagnostics();
   els.outputContent.className = 'empty-output';
   els.outputContent.innerHTML = formatBidiText(t('emptyOutput'));
+  updateDownloadButton();
 }
 
 async function initializePasswordGate() {
@@ -382,11 +417,19 @@ function setLanguage(language) {
   if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') return;
   state.language = language;
   state.lastRecommendedActions = [];
+  state.lastResult = null;
   renderStaticText();
   renderMode();
   renderDiagnostics();
   els.outputContent.className = 'empty-output';
   els.outputContent.textContent = t('emptyOutput');
+  updateDownloadButton();
+}
+
+function setGeminiModel(model) {
+  if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') return;
+  state.geminiModel = model;
+  renderGeminiModelToggle();
 }
 
 function renderStaticText() {
@@ -400,6 +443,10 @@ function renderStaticText() {
   setBidiContent(els.heroDescription, t('heroDescription'));
   setBidiContent(els.consultationModeLabel, t('consultationMode'));
   setBidiContent(els.labsModeLabel, t('labsMode'));
+  setBidiContent(els.modelPickerLabel, t('modelPicker'));
+  setBidiContent(els.modelPickerHint, t('modelPickerHint'));
+  setBidiContent(els.gemini35Label, t('betterAnalysis'));
+  setBidiContent(els.gemini31LiteLabel, t('fasterResults'));
   setBidiContent(els.mockDoctorsLabel, t('mockDoctors'));
   setBidiContent(els.addDoctorLabel, t('add'));
   setBidiContent(els.startRecordLabel, t('startRecording'));
@@ -408,9 +455,16 @@ function renderStaticText() {
   setBidiContent(els.diagnosticsTitle, t('diagnostics'));
   setBidiContent(els.outputTitle, t('outputTitle'));
   setBidiContent(els.outputSubtitle, t('outputWaiting'));
+  setBidiContent(els.downloadResultsLabel, t('downloadResults'));
   if (els.outputContent.classList.contains('empty-output')) {
     els.outputContent.innerHTML = formatBidiText(t('emptyOutput'));
   }
+  renderGeminiModelToggle();
+}
+
+function renderGeminiModelToggle() {
+  els.gemini35Btn.classList.toggle('active', state.geminiModel === 'gemini-3.5-flash');
+  els.gemini31LiteBtn.classList.toggle('active', state.geminiModel === 'gemini-3.1-flash-lite');
 }
 
 function renderMode() {
@@ -519,6 +573,8 @@ function stopRecording() {
 async function runPipeline(audioBlob) {
   try {
     renderDiagnostics(1);
+    state.lastResult = null;
+    updateDownloadButton();
     els.outputContent.className = 'empty-output';
     els.outputContent.innerHTML = formatBidiText(t('processing'));
     setBidiContent(els.outputSubtitle, t('pipelineRunning'));
@@ -532,6 +588,7 @@ async function runPipeline(audioBlob) {
     renderDiagnostics(5, true);
     setBidiContent(els.outputSubtitle, t('pipelineComplete'));
     renderOutput(result);
+    updateDownloadButton();
   } catch (error) {
     setBidiContent(els.outputSubtitle, t('pipelineFailed'));
     els.outputContent.className = '';
@@ -541,6 +598,7 @@ async function runPipeline(audioBlob) {
         <div class="display-tile"><p>${escapeHtml(error.message || 'Unknown error')}</p></div>
       </section>
     `;
+    updateDownloadButton();
   } finally {
     els.recordingDot.classList.remove('active');
     setBidiContent(els.recordingLabel, t('ready'));
@@ -552,9 +610,10 @@ async function runPipeline(audioBlob) {
 async function submitAudio(audioBlob) {
   const serverUrl = getServerUrl();
   const languageQuery = `language=${encodeURIComponent(state.language)}`;
+  const modelQuery = `model=${encodeURIComponent(state.geminiModel)}`;
   const endpoint = state.mode === 'labs'
-    ? `${serverUrl}/api/test/lab-discussion?participants=${encodeURIComponent(state.mockDoctors.join(','))}&${languageQuery}`
-    : `${serverUrl}/api/test/consultation?${languageQuery}`;
+    ? `${serverUrl}/api/test/lab-discussion?participants=${encodeURIComponent(state.mockDoctors.join(','))}&${languageQuery}&${modelQuery}`
+    : `${serverUrl}/api/test/consultation?${languageQuery}&${modelQuery}`;
 
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -583,10 +642,88 @@ function getServerUrl() {
 }
 
 function renderOutput(result) {
+  state.lastResult = result;
   els.outputContent.className = '';
   els.outputContent.innerHTML = state.mode === 'labs'
     ? renderLabOutput(result)
     : renderConsultationOutput(result);
+}
+
+function updateDownloadButton() {
+  els.downloadResultsBtn.disabled = !state.lastResult;
+}
+
+function downloadDisplayedResults() {
+  if (!state.lastResult) return;
+  const timestamp = new Date();
+  const filenameDate = timestamp.toISOString().replace(/[:.]/g, '-');
+  const modeLabel = state.mode === 'labs' ? t('labsTitle') : t('consultationTitle');
+  const html = `<!DOCTYPE html>
+<html lang="${state.language === 'ar' ? 'ar' : 'en'}">
+<head>
+  <meta charset="UTF-8">
+  <title>${escapeHtml(t('printBrand'))} - ${escapeHtml(modeLabel)}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 32px; background: #F7F9FC; color: #111827; font-family: Arial, sans-serif; }
+    main { max-width: 980px; margin: 0 auto; background: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 18px; overflow: hidden; }
+    header { padding: 28px 32px; border-bottom: 1px solid #E5E7EB; background: #EFF6FF; }
+    .brand { color: #2F6FED; font-size: 13px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; }
+    h1 { margin: 8px 0 8px; font-size: 30px; line-height: 1.1; }
+    .meta { color: #475569; font-size: 13px; font-weight: 700; }
+    .content { padding: 26px 32px 34px; }
+    .output-section { border-bottom: 1px solid #E5E7EB; padding: 20px 0; }
+    .output-section:first-child { padding-top: 0; }
+    .output-section:last-child { border-bottom: none; padding-bottom: 0; }
+    .output-section h3 { margin: 0 0 12px; color: #111827; font-size: 18px; font-weight: 900; }
+    .doctor-soap-draft { background: #FFFFFF; border: 1px solid #DDE7F3; border-radius: 14px; padding: 18px; }
+    .soap-title { color: #0F172A; font-size: 22px; font-weight: 900; margin-bottom: 16px; }
+    .soap-columns, .patient-language-grid, .lab-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .soap-column { display: grid; gap: 10px; align-content: start; }
+    .soap-column h4 { margin: 10px 0 2px; padding: 9px 11px; border-radius: 10px; background: #EFF6FF; color: #1D4ED8; font-size: 14px; font-weight: 900; }
+    .soap-column h4:first-child { margin-top: 0; }
+    .soap-field { padding: 10px 11px; border: 1px solid #E5E7EB; border-radius: 10px; background: #F8FAFC; }
+    .soap-field label, .display-tile strong { display: block; margin-bottom: 6px; color: #0F172A; font-size: 12px; font-weight: 900; text-transform: uppercase; }
+    .soap-field div, .display-tile p, .display-tile li { margin: 0; color: #334155; font-size: 14px; line-height: 1.55; font-weight: 400; white-space: pre-wrap; }
+    .display-tile { border: 1px solid #E5E7EB; border-radius: 12px; background: #FAFBFC; padding: 12px; }
+    .recommended-actions-preview { display: grid; gap: 10px; }
+    .test-recommended-action { border: 1px solid #E5E7EB; border-radius: 14px; padding: 14px; background: #F8FAFC; }
+    .print-test-action-btn, .recommended-action-icon { display: none; }
+    .recommended-action-details { display: grid; gap: 8px; margin: 10px 0 0; }
+    .recommended-action-details div { border-top: 1px solid #E5E7EB; padding-top: 8px; }
+    .recommended-action-details dt { color: #64748B; font-size: 12px; font-weight: 900; text-transform: uppercase; }
+    .recommended-action-details dd { margin: 3px 0 0; color: #334155; line-height: 1.5; }
+    .output-json, .transcript-box { max-height: none; overflow: visible; border-radius: 12px; padding: 14px; font-size: 12px; line-height: 1.55; white-space: pre-wrap; }
+    .output-json { background: #0F172A; color: #E5E7EB; direction: ltr; unicode-bidi: plaintext; }
+    .transcript-box { background: #F8FAFC; color: #111827; border: 1px solid #E5E7EB; direction: ltr; unicode-bidi: plaintext; }
+    .mixed-arabic-text { direction: rtl; unicode-bidi: isolate; }
+    .latin-run { direction: ltr; unicode-bidi: isolate; display: inline-block; }
+    @media (max-width: 760px) { body { padding: 14px; } .soap-columns, .patient-language-grid, .lab-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="brand">${escapeHtml(t('printBrand'))}</div>
+      <h1>${escapeHtml(modeLabel)}</h1>
+      <div class="meta">${escapeHtml(t('printed'))}: ${escapeHtml(timestamp.toLocaleString())} · ${escapeHtml(state.lastResult.gemini_model || state.geminiModel)}</div>
+    </header>
+    <section class="content">
+      ${els.outputContent.innerHTML}
+    </section>
+  </main>
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `clinotes-test-results-${state.mode}-${filenameDate}.html`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function renderConsultationOutput(result) {
@@ -595,6 +732,10 @@ function renderConsultationOutput(result) {
   const recommendedActions = extractRecommendedActions(result.analysis_json);
   state.lastRecommendedActions = recommendedActions;
   return `
+    <section class="output-section">
+      <h3>${escapeHtml(t('consultationSummary'))}</h3>
+      <div class="display-tile"><p>${formatBidiText(result.analysis_json?.summary_text || t('notReturned'))}</p></div>
+    </section>
     <section class="output-section">
       <h3>${escapeHtml(t('doctorSoap'))}</h3>
       ${renderDoctorSoapDraft(doctor)}
@@ -898,23 +1039,23 @@ function renderLabOutput(result) {
 function renderJsonAndTranscript(result) {
   return `
     <section class="output-section">
-      <h3>${escapeHtml(t('geminiJson'))}</h3>
-      <pre class="output-json">${escapeHtml(JSON.stringify(result.analysis_json || {}, null, 2))}</pre>
-    </section>
-    <section class="output-section">
       <h3>${escapeHtml(t('transcript'))}</h3>
       <pre class="transcript-box">${formatBidiText(result.transcript_text || t('noTranscript'))}</pre>
+    </section>
+    <section class="output-section">
+      <h3>${escapeHtml(t('geminiJson'))}</h3>
+      <pre class="output-json">${escapeHtml(JSON.stringify(result.analysis_json || {}, null, 2))}</pre>
     </section>
   `;
 }
 
 function renderDoctorSoapDraft(doctor) {
   const treatment = (doctor.plan || [])
-    .filter(item => !String(item.label || '').toLowerCase().includes('follow'))
+    .filter(item => !isFollowUpPlanItem(item))
     .map(item => `${item.label}: ${item.value}`)
     .join('\n');
   const followUp = (doctor.plan || [])
-    .find(item => String(item.label || '').toLowerCase().includes('follow'))?.value || '';
+    .find(item => isFollowUpPlanItem(item))?.value || '';
 
   return `
     <div class="doctor-soap-draft">
@@ -926,7 +1067,7 @@ function renderDoctorSoapDraft(doctor) {
           ${soapField(t('medicalHistory'), doctor.subjective?.history)}
           ${soapField(t('allergies'), doctor.subjective?.allergies)}
           <h4>${escapeHtml(t('objective'))}</h4>
-          ${hasVitalsData(doctor.objective?.vitals) ? soapField(t('vitals'), formatVitals(doctor.objective?.vitals)) : ''}
+          ${soapField(t('vitals'), formatVitals(doctor.objective?.vitals))}
           ${soapField(t('physicalExam'), doctor.objective?.examination)}
         </div>
         <div class="soap-column">
@@ -939,6 +1080,16 @@ function renderDoctorSoapDraft(doctor) {
       </div>
     </div>
   `;
+}
+
+function isFollowUpPlanItem(item = {}) {
+  const label = String(item.label || '').toLowerCase();
+  const value = String(item.value || '').toLowerCase();
+  return label.includes('follow')
+    || label.includes('متابعة')
+    || label.includes('مراجعة')
+    || value.includes('follow-up')
+    || value.includes('follow up');
 }
 
 function soapField(label, value) {
@@ -979,10 +1130,16 @@ function listText(value) {
 }
 
 function formatVitals(vitals) {
-  if (!hasVitalsData(vitals)) return '';
-  return Object.entries(normalizeVitals(vitals))
+  const normalized = normalizeVitals(vitals);
+  if (!hasVitalsData(normalized)) return t('noVitalsRecorded');
+  const labels = {
+    blood_pressure: t('bloodPressure'),
+    heart_rate: t('heartRate'),
+    temperature: t('temperature'),
+  };
+  return Object.entries(normalized)
     .filter(([, value]) => String(value || '').trim())
-    .map(([key, value]) => `${key.replace(/_/g, ' ')}: ${value}`)
+    .map(([key, value]) => `${labels[key] || key.replace(/_/g, ' ')}: ${value}`)
     .join(', ');
 }
 
