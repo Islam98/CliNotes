@@ -535,6 +535,25 @@ export const api = {
       return data;
     },
 
+    async generatePatientContext(patientId) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not authenticated");
+
+      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const response = await fetch(`${serverUrl}/api/patient-context`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ patientId }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not generate patient context.');
+      return data;
+    },
+
     /**
      * Delete consultation completely
      */

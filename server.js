@@ -486,7 +486,7 @@ app.post('/api/upload-audio/:consultationId', express.raw({ type: ['audio/*', 'a
             cacheControl: '3600',
             upsert: false
           });
-        
+
         if (retryError) throw retryError;
         uploadData = retryData;
       } else {
@@ -611,16 +611,17 @@ async function analyzeTranscriptWithGemini(transcriptText, { outputLanguage = 'e
 
   const systemPrompt = `
 You are a highly skilled medical AI assistant. Your task is to analyze clinical consultation transcripts conducted in code-switched Arabic-English and extract key medical information in a structured SOAP (Subjective, Objective, Assessment, Plan) format.
+Create notes that are clinically useful, moderately detailed, and easy to scan. Do not make the SOAP note overly brief. Do not add clutter, speculation, or facts not supported by the transcript.
 Please analyze the provided text and output a JSON object with the following structure:
 {
-  "summary_text": "A brief 2-3 sentence summary of the overall consultation.",
+  "summary_text": "A concise 2-4 sentence summary covering the main problem, relevant context, assessment, and plan.",
   "structured_data": {
     "title": "A short, descriptive title for this consultation",
     "subjective": {
-      "chief_complaint": "The patient's main reason for the visit",
-      "history": "Relevant medical history mentioned",
-      "allergies": "Any allergies discussed",
-      "notes": "Other subjective observations"
+      "chief_complaint": "One clear sentence with the patient's main reason for the visit",
+      "history": "2-5 concise sentences with symptom details, duration, relevant medical history, and context mentioned in the transcript",
+      "allergies": "Any allergies discussed; empty string if not mentioned",
+      "notes": "Other relevant subjective details, including important negatives only if explicitly discussed"
     },
     "objective": {
       "vitals": {
@@ -628,16 +629,16 @@ Please analyze the provided text and output a JSON object with the following str
         "heart_rate": "e.g., 75 bpm",
         "temperature": "e.g., 98.6 F"
       },
-      "examination": "Physical examination findings"
+      "examination": "Physical examination findings or objective observations mentioned; empty string if none"
     },
     "assessment": {
       "diagnoses": ["list", "of", "suspected", "or", "confirmed", "diagnoses"],
-      "reasoning": "Clinical reasoning or thoughts from the doctor"
+      "reasoning": "2-4 concise sentences explaining how symptoms, history, exam, or results support the assessment"
     },
     "plan": [
-      { "label": "Medication", "value": "Prescribed medication details" },
-      { "label": "Test", "value": "Lab or imaging orders" },
-      { "label": "Follow-up", "value": "When to return" }
+      { "label": "Medication", "value": "Specific medication plan with dose/timing/reason when mentioned" },
+      { "label": "Test or Imaging", "value": "Specific lab, imaging, scan, or diagnostic order with reason when mentioned" },
+      { "label": "Follow-up", "value": "When to return or what should be reviewed next" }
     ],
     "recommended_actions": {
       "follow_up": {
@@ -688,8 +689,23 @@ Please analyze the provided text and output a JSON object with the following str
     "cleaned_transcript": "The same transcript text, lightly cleaned. Correct ambiguous medical terms and preserve English medical terminology in Latin letters inside Arabic text."
   }
 }
+SOAP detail rules:
+- Prefer complete, clinically useful sentences over fragments.
+- Keep each field focused. Avoid long paragraphs, repeated information, generic filler, and unsupported normal findings.
+- If a detail is not mentioned, leave the field empty instead of guessing.
+
 For cleaned_transcript: keep the transcript meaning, order, speakers if obvious, and wording as close as possible to the Soniox transcript. Do not summarize. Do not add facts. Only correct obvious transcription mistakes, especially English medical terminology that was mistakenly written phonetically or in Arabic alphabet inside Arabic speech. Examples: "سي تي" -> "[CT]", "ام ار اي" -> "[MRI]", "اتش بي اي ون سي" -> "[HbA1c]", "كرياتينين" -> "[creatinine]" when it is clearly the medical term. Preserve Arabic sentences as Arabic. When an English medical term appears inside an Arabic sentence, write it in Latin letters inside square brackets to prevent mixed-direction display issues.
-For recommended_actions: include only actions that are clearly supported by the transcript. If no action of a type was mentioned or implied, set needed to false and leave arrays empty. These four action types are the only allowed action types. Do not invent medications, tests, referrals, or follow-up timing.
+For recommended_actions:
+- Decide recommended_actions from transcript evidence using the same criteria every time.
+- These four action types are the only allowed action types.
+- Set follow_up.needed true only when the doctor explicitly asks the patient to return, review results, reassess symptoms, or schedules/plans a future visit. Copy or infer the timing only from the transcript. If follow-up is clearly needed but timing is not stated, use "not specified".
+- Set prescription.needed true only for medications newly prescribed, renewed, stopped, dose-changed, or clearly instructed during this consultation. Include all such medications. Do not include past/home medications unless the doctor changes or explicitly continues them.
+- Set lab_order.needed true only when a lab test, imaging study, scan, or diagnostic test is ordered, requested, or planned.
+- Set referral.needed true only when the doctor recommends seeing another specialist or transferring care to another specialty.
+- If evidence is direct and clear, prefer setting the action to true. If evidence is ambiguous, prefer false.
+- If an action is false, keep its strings empty and arrays empty.
+- For true actions, fill every field that is supported by the transcript and keep status exactly "pending".
+- Do not invent medications, tests, referrals, or follow-up timing.
 ${getGeminiOutputLanguageInstructions(outputLanguage, 'consultation')}
 Ensure the output is strictly valid JSON and nothing else. All line breaks inside string values, especially cleaned_transcript, must be escaped as \\n so the response remains valid JSON.
 `;
@@ -698,7 +714,7 @@ Ensure the output is strictly valid JSON and nothing else. All line breaks insid
     model: geminiModel,
     systemInstruction: systemPrompt,
     generationConfig: {
-      temperature: 0.2,
+      temperature: 0.05,
       responseMimeType: "application/json",
     }
   });
@@ -777,6 +793,47 @@ Always write in English, even if the source note contains Arabic or code-switche
   return parseGeminiJsonResponse(response, 'patient summary');
 }
 
+async function generatePatientContextDebriefWithGemini({ patient, summaries }) {
+  if (!gemini) {
+    throw new Error("Gemini API key is missing or invalid on the server.");
+  }
+
+  const systemPrompt = `
+You are a concise clinical handoff assistant for a doctor before seeing a patient.
+You will receive only previous consultation summary_text values from CliNotes.
+Create a current-situation debrief based strictly on those summaries. Do not add facts, diagnoses, medications, or plans that are not present.
+Return strictly valid JSON:
+{
+  "headline": "Short headline for the patient's current context",
+  "debrief": "A clear 3-5 sentence paragraph describing the patient's recent clinical situation and continuity of care context",
+  "key_points": ["3-5 short bullets with recurring problems, recent findings, treatments, tests, or follow-up needs"],
+  "suggested_focus": ["2-4 short bullets for what the doctor may want to clarify today"]
+}
+Keep the tone clinical, neutral, and useful. If the summaries are sparse, say that prior documentation is limited.
+`;
+
+  const payload = {
+    patient: {
+      name: patient?.name || '',
+      age: patient?.age || '',
+      gender: patient?.gender || '',
+    },
+    previous_consultation_summaries: summaries,
+  };
+
+  const model = gemini.getGenerativeModel({
+    model: GEMINI_MODEL,
+    systemInstruction: systemPrompt,
+    generationConfig: {
+      temperature: 0.05,
+      responseMimeType: "application/json",
+    }
+  });
+
+  const response = await model.generateContent(JSON.stringify(payload));
+  return parseGeminiJsonResponse(response, 'patient context debrief');
+}
+
 // ─── Existing: Analyze Transcript Endpoint ───
 app.post('/api/analyze-transcript', async (req, res) => {
   const { transcriptText } = req.body;
@@ -823,6 +880,85 @@ app.post('/api/patient-summary', async (req, res) => {
     res.json(summary);
   } catch (error) {
     res.status(500).json({ error: error.message || 'Failed to generate patient summary.' });
+  }
+});
+
+app.post('/api/patient-context', async (req, res) => {
+  if (!supabaseAdmin) {
+    return res.status(500).json({ error: 'Supabase admin client is not configured.' });
+  }
+
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication is required.' });
+  }
+
+  const { patientId } = req.body || {};
+  if (!patientId) {
+    return res.status(400).json({ error: 'patientId is required.' });
+  }
+
+  try {
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
+    if (userError || !userData.user) {
+      return res.status(401).json({ error: 'Invalid session.' });
+    }
+
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .select('role')
+      .eq('id', userData.user.id)
+      .single();
+
+    if (profileError || profile?.role !== 'doctor') {
+      return res.status(403).json({ error: 'Only doctors can generate patient context.' });
+    }
+
+    const [{ data: patient, error: patientError }, { data: consultations, error: consultationsError }] = await Promise.all([
+      supabaseAdmin
+        .from('patient_profile')
+        .select('id, name, age, gender')
+        .eq('id', patientId)
+        .single(),
+      supabaseAdmin
+        .from('consultation')
+        .select('id, date_time, ai_summary(summary_text)')
+        .eq('patient_id', patientId)
+        .order('date_time', { ascending: false })
+    ]);
+
+    if (patientError || !patient) {
+      return res.status(404).json({ error: 'Patient was not found.' });
+    }
+    if (consultationsError) {
+      throw consultationsError;
+    }
+
+    const summaries = (consultations || [])
+      .flatMap(consultation => consultation.ai_summary || [])
+      .map(summary => String(summary.summary_text || '').trim())
+      .filter(Boolean)
+      .slice(0, 8);
+
+    if (summaries.length === 0) {
+      return res.json({
+        first_visit: true,
+        headline: 'First CliNotes visit',
+        debrief: 'This is the patient’s first recorded visit. ',
+        key_points: [],
+        suggested_focus: [],
+      });
+    }
+
+    const debrief = await generatePatientContextDebriefWithGemini({ patient, summaries });
+    res.json({
+      first_visit: false,
+      previous_summary_count: summaries.length,
+      ...debrief,
+    });
+  } catch (error) {
+    console.error('[PatientContext] Failed to generate patient context:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate patient context.' });
   }
 });
 

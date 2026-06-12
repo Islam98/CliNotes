@@ -211,34 +211,66 @@ async function analyzeTranscriptWithGemini(transcriptText, { outputLanguage = 'e
 
   const systemPrompt = `
 You are a medical documentation assistant. Analyze Arabic-English code-switched consultation transcripts.
+Create notes that are clinically useful, moderately detailed, and easy to scan. Do not make the SOAP note overly brief. Do not add clutter, speculation, or facts not supported by the transcript.
 Return strictly valid JSON:
 {
-  "summary_text": "Brief consultation summary",
+  "summary_text": "2-4 concise sentences summarizing the main problem, clinically relevant context, assessment, and plan",
   "structured_data": {
-    "title": "Short title",
-    "subjective": { "chief_complaint": "", "history": "", "allergies": "", "notes": "" },
+    "title": "Short descriptive title",
+    "subjective": {
+      "chief_complaint": "1 clear sentence with the patient's main reason for the visit",
+      "history": "2-5 concise sentences with symptom details, duration, relevant medical history, and context mentioned in the transcript",
+      "allergies": "Allergies mentioned; empty string if not mentioned",
+      "notes": "Other relevant subjective details, including important negatives only if explicitly discussed"
+    },
     "objective": {
       "vitals": { "blood_pressure": "", "heart_rate": "", "temperature": "" },
-      "examination": ""
+      "examination": "Objective exam findings or observations mentioned; empty string if none"
     },
-    "assessment": { "diagnoses": [], "reasoning": "" },
-    "plan": [{ "label": "Medication | Test | Follow-up", "value": "" }],
+    "assessment": {
+      "diagnoses": ["suspected or confirmed diagnoses only"],
+      "reasoning": "2-4 concise sentences explaining how symptoms, history, exam, or results support the assessment"
+    },
+    "plan": [
+      { "label": "Medication | Test | Imaging | Follow-up | Referral | Advice", "value": "Specific plan item with relevant dose/timing/reason when mentioned" }
+    ],
     "recommended_actions": {
       "follow_up": { "needed": false, "timing": "", "reason": "", "status": "pending" },
-      "prescription": { "needed": false, "medications": [], "status": "pending" },
-      "lab_order": { "needed": false, "orders": [], "status": "pending" },
+      "prescription": {
+        "needed": false,
+        "medications": [],
+        "status": "pending"
+      },
+      "lab_order": {
+        "needed": false,
+        "orders": [],
+        "status": "pending"
+      },
       "referral": { "needed": false, "specialty": "", "reason": "", "debrief": "", "status": "pending" }
     },
     "patient_summary": {
-      "what_you_came_for": "",
-      "what_was_discussed": "",
-      "what_the_doctor_found": "",
-      "what_happens_next": ""
+      "what_you_came_for": "1 simple sentence",
+      "what_was_discussed": "1-2 simple sentences",
+      "what_the_doctor_found": "1-2 simple sentences",
+      "what_happens_next": "1-2 simple sentences"
     },
     "cleaned_transcript": "The same transcript text, lightly cleaned."
   }
 }
-For recommended_actions, include only actions clearly supported by the transcript.
+SOAP detail rules:
+- Prefer complete, clinically useful sentences over fragments.
+- Keep each field focused. Avoid long paragraphs, repeated information, generic filler, and unsupported normal findings.
+- If a detail is not mentioned, leave the field empty instead of guessing.
+
+Recommended action rules:
+- Decide recommended_actions from transcript evidence using the same criteria every time.
+- Set follow_up.needed true only when the doctor explicitly asks the patient to return, review results, reassess symptoms, or schedules/plans a future visit. Copy or infer the timing only from the transcript. If follow-up is clearly needed but timing is not stated, use "not specified".
+- Set prescription.needed true only for medications newly prescribed, renewed, stopped, dose-changed, or clearly instructed during this consultation. Include all such medications. Do not include past/home medications unless the doctor changes or explicitly continues them.
+- Set lab_order.needed true only when a lab test, imaging study, scan, or diagnostic test is ordered, requested, or planned.
+- Set referral.needed true only when the doctor recommends seeing another specialist or transferring care to another specialty.
+- If evidence is direct and clear, prefer setting the action to true. If evidence is ambiguous, prefer false.
+- If an action is false, keep its strings empty and arrays empty.
+- For true actions, fill every field that is supported by the transcript and keep status exactly "pending".
 For cleaned_transcript, preserve meaning and order; correct obvious English medical terminology mistakes.
 ${getOutputLanguageInstructions(outputLanguage, 'consultation')}
 All line breaks inside string values must be escaped as \\n.
@@ -247,7 +279,7 @@ All line breaks inside string values must be escaped as \\n.
   const model = gemini.getGenerativeModel({
     model: geminiModel,
     systemInstruction: systemPrompt,
-    generationConfig: { temperature: 0.2, responseMimeType: 'application/json' },
+    generationConfig: { temperature: 0.05, responseMimeType: 'application/json' },
   });
   return parseGeminiJsonResponse(await model.generateContent(transcriptText), 'consultation analysis', geminiModel);
 }

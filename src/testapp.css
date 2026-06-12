@@ -276,6 +276,13 @@
   margin-bottom: 4px;
 }
 
+.output-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .download-results-btn {
   border: 1px solid #D8E3F5;
   border-radius: 12px;

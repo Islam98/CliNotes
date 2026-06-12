@@ -10,6 +10,9 @@ const state = {
   mockDoctors: ['Dr. Omar Mah', 'Dr. Layla Hassan'],
   lastRecommendedActions: [],
   lastResult: null,
+  lastAudioBlob: null,
+  lastAudioExtension: 'webm',
+  currentRunBaseName: '',
   testPassword: sessionStorage.getItem('clinotes_test_password') || '',
 };
 
@@ -60,6 +63,8 @@ const els = {
   outputTitle: document.getElementById('outputTitle'),
   outputContent: document.getElementById('outputContent'),
   outputSubtitle: document.getElementById('outputSubtitle'),
+  downloadAudioBtn: document.getElementById('downloadAudioBtn'),
+  downloadAudioLabel: document.getElementById('downloadAudioLabel'),
   downloadResultsBtn: document.getElementById('downloadResultsBtn'),
   downloadResultsLabel: document.getElementById('downloadResultsLabel'),
 };
@@ -94,6 +99,7 @@ const copy = {
     diagnostics: 'Diagnostics',
     outputTitle: 'Generated Output',
     outputWaiting: 'Results appear here after Soniox and Gemini finish.',
+    downloadAudio: 'Download audio',
     downloadResults: 'Download results',
     emptyOutput: 'Choose a mode, record a short sample, then stop the recording.',
     uploadLabsOnly: 'Audio upload is currently available for patient consultation testing only.',
@@ -218,6 +224,7 @@ const copy = {
     diagnostics: 'متابعة التشغيل',
     outputTitle: 'النتائج',
     outputWaiting: 'ستظهر النتائج هنا بعد انتهاء Soniox و Gemini.',
+    downloadAudio: 'تنزيل الصوت',
     downloadResults: 'تنزيل النتائج',
     emptyOutput: 'اختر نوع الاختبار، وسجل عينة قصيرة، ثم أوقف التسجيل.',
     uploadLabsOnly: 'رفع التسجيلات متاح حاليا لاختبار استشارات المرضى فقط.',
@@ -328,6 +335,7 @@ els.gemini35Btn.addEventListener('click', () => setGeminiModel('gemini-3.5-flash
 els.gemini31LiteBtn.addEventListener('click', () => setGeminiModel('gemini-3.1-flash-lite'));
 els.consultationModeBtn.addEventListener('click', () => setMode('consultation'));
 els.labsModeBtn.addEventListener('click', () => setMode('labs'));
+els.downloadAudioBtn.addEventListener('click', downloadRecordedAudio);
 els.downloadResultsBtn.addEventListener('click', downloadDisplayedResults);
 els.addMockDoctorBtn.addEventListener('click', addMockDoctor);
 els.mockDoctorsInput.addEventListener('keydown', event => {
@@ -349,12 +357,12 @@ els.outputContent.addEventListener('click', event => {
 function setMode(mode) {
   if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') return;
   state.mode = mode;
-  state.lastResult = null;
+  resetLastRun();
   renderMode();
   renderDiagnostics();
   els.outputContent.className = 'empty-output';
   els.outputContent.innerHTML = formatBidiText(t('emptyOutput'));
-  updateDownloadButton();
+  updateDownloadButtons();
 }
 
 async function initializePasswordGate() {
@@ -417,13 +425,13 @@ function setLanguage(language) {
   if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') return;
   state.language = language;
   state.lastRecommendedActions = [];
-  state.lastResult = null;
+  resetLastRun();
   renderStaticText();
   renderMode();
   renderDiagnostics();
   els.outputContent.className = 'empty-output';
   els.outputContent.textContent = t('emptyOutput');
-  updateDownloadButton();
+  updateDownloadButtons();
 }
 
 function setGeminiModel(model) {
@@ -455,6 +463,7 @@ function renderStaticText() {
   setBidiContent(els.diagnosticsTitle, t('diagnostics'));
   setBidiContent(els.outputTitle, t('outputTitle'));
   setBidiContent(els.outputSubtitle, t('outputWaiting'));
+  setBidiContent(els.downloadAudioLabel, t('downloadAudio'));
   setBidiContent(els.downloadResultsLabel, t('downloadResults'));
   if (els.outputContent.classList.contains('empty-output')) {
     els.outputContent.innerHTML = formatBidiText(t('emptyOutput'));
@@ -557,7 +566,7 @@ async function handleConsultationUpload(event) {
   els.stopRecordBtn.disabled = true;
   els.uploadConsultationLabel.classList.add('disabled');
 
-  await runPipeline(file);
+  await runPipeline(file, { originalFilename: file.name });
   els.recordingTimer.textContent = '00:00';
   els.uploadConsultationLabel.classList.remove('disabled');
 }
@@ -570,11 +579,14 @@ function stopRecording() {
   clearInterval(state.timer);
 }
 
-async function runPipeline(audioBlob) {
+async function runPipeline(audioBlob, { originalFilename = '' } = {}) {
   try {
     renderDiagnostics(1);
     state.lastResult = null;
-    updateDownloadButton();
+    state.lastAudioBlob = audioBlob;
+    state.lastAudioExtension = getAudioExtension(audioBlob, originalFilename);
+    state.currentRunBaseName = createRunBaseName(state.mode);
+    updateDownloadButtons();
     els.outputContent.className = 'empty-output';
     els.outputContent.innerHTML = formatBidiText(t('processing'));
     setBidiContent(els.outputSubtitle, t('pipelineRunning'));
@@ -588,7 +600,7 @@ async function runPipeline(audioBlob) {
     renderDiagnostics(5, true);
     setBidiContent(els.outputSubtitle, t('pipelineComplete'));
     renderOutput(result);
-    updateDownloadButton();
+    updateDownloadButtons();
   } catch (error) {
     setBidiContent(els.outputSubtitle, t('pipelineFailed'));
     els.outputContent.className = '';
@@ -598,7 +610,7 @@ async function runPipeline(audioBlob) {
         <div class="display-tile"><p>${escapeHtml(error.message || 'Unknown error')}</p></div>
       </section>
     `;
-    updateDownloadButton();
+    updateDownloadButtons();
   } finally {
     els.recordingDot.classList.remove('active');
     setBidiContent(els.recordingLabel, t('ready'));
@@ -649,14 +661,26 @@ function renderOutput(result) {
     : renderConsultationOutput(result);
 }
 
-function updateDownloadButton() {
+function updateDownloadButtons() {
+  els.downloadAudioBtn.disabled = !state.lastAudioBlob;
   els.downloadResultsBtn.disabled = !state.lastResult;
+}
+
+function resetLastRun() {
+  state.lastResult = null;
+  state.lastAudioBlob = null;
+  state.lastAudioExtension = 'webm';
+  state.currentRunBaseName = '';
+}
+
+function downloadRecordedAudio() {
+  if (!state.lastAudioBlob) return;
+  downloadBlob(state.lastAudioBlob, `${getCurrentRunBaseName()}-audio.${state.lastAudioExtension}`);
 }
 
 function downloadDisplayedResults() {
   if (!state.lastResult) return;
   const timestamp = new Date();
-  const filenameDate = timestamp.toISOString().replace(/[:.]/g, '-');
   const modeLabel = state.mode === 'labs' ? t('labsTitle') : t('consultationTitle');
   const html = `<!DOCTYPE html>
 <html lang="${state.language === 'ar' ? 'ar' : 'en'}">
@@ -716,14 +740,49 @@ function downloadDisplayedResults() {
 </html>`;
 
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  downloadBlob(blob, `${getCurrentRunBaseName()}-results.html`);
+}
+
+function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `clinotes-test-results-${state.mode}-${filenameDate}.html`;
+  link.download = filename;
   document.body.appendChild(link);
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+function createRunBaseName(mode) {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  return `clinotes-test-${mode}-${timestamp}`;
+}
+
+function getCurrentRunBaseName() {
+  if (!state.currentRunBaseName) {
+    state.currentRunBaseName = createRunBaseName(state.mode);
+  }
+  return state.currentRunBaseName;
+}
+
+function getAudioExtension(audioBlob, originalFilename = '') {
+  const originalExtension = String(originalFilename || '').split('.').pop();
+  if (originalExtension && originalExtension !== originalFilename && /^[a-z0-9]{2,5}$/i.test(originalExtension)) {
+    return originalExtension.toLowerCase();
+  }
+  const mime = String(audioBlob?.type || '').split(';')[0].toLowerCase();
+  return {
+    'audio/webm': 'webm',
+    'audio/mpeg': 'mp3',
+    'audio/mp3': 'mp3',
+    'audio/mp4': 'm4a',
+    'audio/x-m4a': 'm4a',
+    'audio/wav': 'wav',
+    'audio/x-wav': 'wav',
+    'audio/ogg': 'ogg',
+    'audio/aac': 'aac',
+  }[mime] || 'webm';
 }
 
 function renderConsultationOutput(result) {

@@ -216,23 +216,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     preview.innerHTML = '<div class="search-loading"><i class="uil uil-spinner-alt uil-spin"></i> Loading context...</div>';
 
     try {
-      const [patient, consultations] = await Promise.all([
+      const [patient, context] = await Promise.all([
         api.data.getPatientProfile(patientId),
-        api.data.getPatientConsultations(patientId)
+        api.data.generatePatientContext(patientId)
       ]);
 
-      const latest = consultations?.[0] || null;
-      const structured = latest?.ai_summary?.[0]?.structured_data || {};
-      const diagnoses = structured?.assessment?.diagnoses || [];
-      const diagnosisList = Array.isArray(diagnoses) ? diagnoses : [diagnoses].filter(Boolean);
-      const plan = Array.isArray(structured?.plan)
-        ? structured.plan.map(item => item.value || item.description || item).filter(Boolean).slice(0, 2).join(' · ')
-        : Object.values(structured?.plan || {}).flat().filter(Boolean).slice(0, 2).join(' · ');
-
       const meta = [patient.age ? `Age ${patient.age}` : '', patient.gender || ''].filter(Boolean).join(' • ') || 'Patient';
-      const lastVisit = latest
-        ? new Date(latest.date_time).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
-        : 'No previous visits';
+      const keyPoints = Array.isArray(context.key_points) ? context.key_points.filter(Boolean) : [];
+      const suggestedFocus = Array.isArray(context.suggested_focus) ? context.suggested_focus.filter(Boolean) : [];
 
       preview.innerHTML = `
         <div class="patient-preview">
@@ -248,21 +239,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             <p>${escapeHtml(visitReason || 'No pre-visit reason provided.')}</p>
           </div>
           <div class="preview-section">
-            <span>Last Visit</span>
-            <p>${escapeHtml(lastVisit)}</p>
+            <span>${context.first_visit ? 'Patient Context' : escapeHtml(context.headline || 'Patient Context')}</span>
+            <p>${escapeHtml(context.debrief || 'No patient context available yet.')}</p>
           </div>
-          <div class="preview-section">
-            <span>Active Diagnoses</span>
-            ${diagnosisList.length ? `
-              <div class="preview-tags">
-                ${diagnosisList.slice(0, 4).map(d => `<span class="preview-tag">${escapeHtml(d)}</span>`).join('')}
-              </div>
-            ` : '<p>No diagnoses recorded yet.</p>'}
-          </div>
-          <div class="preview-section">
-            <span>Recent Plan</span>
-            <p>${escapeHtml(plan || 'No recent plan recorded.')}</p>
-          </div>
+          ${keyPoints.length ? `
+            <div class="preview-section">
+              <span>Key Points</span>
+              <ul class="preview-bullets">
+                ${keyPoints.slice(0, 5).map(point => `<li>${escapeHtml(point)}</li>`).join('')}
+              </ul>
+            </div>
+          ` : ''}
+          ${suggestedFocus.length ? `
+            <div class="preview-section">
+              <span>Suggested Focus Today</span>
+              <ul class="preview-bullets">
+                ${suggestedFocus.slice(0, 4).map(point => `<li>${escapeHtml(point)}</li>`).join('')}
+              </ul>
+            </div>
+          ` : ''}
           <div class="preview-actions">
             <button class="secondary-btn" onclick="window.location.href='/patient-profile.html?id=${patientId}'"><i class="uil uil-user-square"></i> View Profile</button>
           </div>

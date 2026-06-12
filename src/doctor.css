@@ -447,6 +447,19 @@
   line-height: 1.45;
 }
 
+.preview-bullets {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+
+.preview-bullets li {
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
 .preview-tags {
   display: flex;
   flex-wrap: wrap;

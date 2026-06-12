@@ -128,10 +128,16 @@
             <h2 id="outputTitle">Generated Output</h2>
             <p id="outputSubtitle">Results appear here after Soniox and Gemini finish.</p>
           </div>
-          <button type="button" class="download-results-btn" id="downloadResultsBtn" disabled>
-            <i class="uil uil-download-alt"></i>
-            <span id="downloadResultsLabel">Download results</span>
-          </button>
+          <div class="output-actions">
+            <button type="button" class="download-results-btn" id="downloadAudioBtn" disabled>
+              <i class="uil uil-music"></i>
+              <span id="downloadAudioLabel">Download audio</span>
+            </button>
+            <button type="button" class="download-results-btn" id="downloadResultsBtn" disabled>
+              <i class="uil uil-download-alt"></i>
+              <span id="downloadResultsLabel">Download results</span>
+            </button>
+          </div>
         </div>
         <div id="outputContent" class="empty-output">
           Choose a mode, record a short sample, then stop the recording.
