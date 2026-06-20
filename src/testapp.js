@@ -1,5 +1,6 @@
 import { getServerUrl } from './app-config.js';
 import { appState } from './app-state.js';
+import { getRecorderOptions, normalizeRecordedAudio } from './audio-utils.js';
 
 const state = {
   mode: 'consultation',
@@ -492,17 +493,22 @@ function renderMockDoctors() {
 async function startRecording() {
   try {
     state.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    state.mediaRecorder = new MediaRecorder(state.stream);
+    const recorderOptions = getRecorderOptions();
+    state.mediaRecorder = recorderOptions
+      ? new MediaRecorder(state.stream, recorderOptions)
+      : new MediaRecorder(state.stream);
     state.chunks = [];
 
     state.mediaRecorder.ondataavailable = event => {
       if (event.data.size > 0) state.chunks.push(event.data);
     };
 
-    state.mediaRecorder.onstop = () => {
-      const audioBlob = new Blob(state.chunks, { type: 'audio/webm' });
+    state.mediaRecorder.onstop = async () => {
+      const recordedMimeType = state.mediaRecorder.mimeType || state.chunks[0]?.type || recorderOptions?.mimeType || 'audio/webm';
+      const recordedBlob = new Blob(state.chunks, { type: recordedMimeType });
       state.stream.getTracks().forEach(track => track.stop());
-      runPipeline(audioBlob);
+      const audioBlob = await normalizeRecordedAudio(recordedBlob);
+      runPipeline(audioBlob, { originalFilename: `clinotes-recording.${getAudioExtension(audioBlob)}` });
     };
 
     state.mediaRecorder.start(1000);

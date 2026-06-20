@@ -1,6 +1,7 @@
 import { api } from './api.js';
 import { supabase } from './supabase.js';
 import { applyStaticTranslations, mountLanguageToggle, t } from './i18n.js';
+import { getRecorderOptions, normalizeRecordedAudio } from './audio-utils.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   applyStaticTranslations();
@@ -871,7 +872,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       }, 1000);
 
       // 3. Setup Recorder
-      mediaRecorder = new MediaRecorder(stream);
+      const recorderOptions = getRecorderOptions();
+      mediaRecorder = recorderOptions
+        ? new MediaRecorder(stream, recorderOptions)
+        : new MediaRecorder(stream);
       audioChunks = [];
 
       mediaRecorder.ondataavailable = (e) => {
@@ -881,7 +885,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        const recordedMimeType = mediaRecorder.mimeType || audioChunks[0]?.type || recorderOptions?.mimeType || 'audio/webm';
+        const recordedBlob = new Blob(audioChunks, { type: recordedMimeType });
+        const audioBlob = await normalizeRecordedAudio(recordedBlob);
         stream.getTracks().forEach(track => track.stop());
 
         if (currentConsultationId) {

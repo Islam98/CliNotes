@@ -112,6 +112,23 @@ function extensionFromMimeType(mimeType = '') {
   }[mimeType] || 'webm';
 }
 
+function mimeTypeFromFilename(filename = '') {
+  const extension = String(filename).split('.').pop().toLowerCase();
+  return {
+    webm: 'audio/webm',
+    mp3: 'audio/mpeg',
+    m4a: 'audio/mp4',
+    mp4: 'video/mp4',
+    wav: 'audio/wav',
+    ogg: 'audio/ogg',
+    aac: 'audio/aac',
+    flac: 'audio/flac',
+    mov: 'video/quicktime',
+    amr: 'audio/amr',
+    '3gp': 'audio/3gpp',
+  }[extension] || 'application/octet-stream';
+}
+
 async function uploadToSoniox(audioBuffer, filename, mimeType = 'application/octet-stream') {
   const form = new FormData();
   form.append('file', new Blob([audioBuffer], { type: mimeType }), filename);
@@ -504,14 +521,15 @@ app.post('/api/upload-audio/:consultationId', express.raw({ type: ['audio/*', 'a
     return res.status(400).json({ error: 'No audio data received.' });
   }
 
-  const fileName = `${consultationId}/${Date.now()}.webm`;
+  const upload = getAudioUploadMetadata(req, `${Date.now()}`);
+  const fileName = `${consultationId}/${upload.filename}`;
 
   try {
     // 1. Upload to storage using service_role to bypass RLS
     let { data: uploadData, error: uploadError } = await supabaseAdmin.storage
       .from('consultation-audio')
       .upload(fileName, audioBuffer, {
-        contentType: 'audio/webm',
+        contentType: upload.mimeType,
         cacheControl: '3600',
         upsert: false
       });
@@ -523,7 +541,7 @@ app.post('/api/upload-audio/:consultationId', express.raw({ type: ['audio/*', 'a
         const { data: retryData, error: retryError } = await supabaseAdmin.storage
           .from('consultation-audio')
           .upload(fileName, audioBuffer, {
-            contentType: 'audio/webm',
+            contentType: upload.mimeType,
             cacheControl: '3600',
             upsert: false
           });
@@ -1130,6 +1148,7 @@ app.post('/api/transcribe', async (req, res) => {
       return res.status(500).json({ error: `Failed to download audio: ${downloadError?.message || 'Unknown error'}` });
     }
 
+    const audioMimeType = audioData.type || mimeTypeFromFilename(audioRecord.file_path);
     const audioBuffer = Buffer.from(await audioData.arrayBuffer());
     console.log(`[Transcribe] Downloaded audio: ${audioBuffer.length} bytes`);
 
@@ -1163,7 +1182,7 @@ app.post('/api/transcribe', async (req, res) => {
         // 4. Upload to Soniox
         const filename = audioRecord.file_path.split('/').pop() || 'consultation.webm';
         console.log(`[Transcribe] Uploading to Soniox as: ${filename}`);
-        const uploadResult = await uploadToSoniox(audioBuffer, filename);
+        const uploadResult = await uploadToSoniox(audioBuffer, filename, audioMimeType);
         sonioxFileId = uploadResult.id;
         console.log(`[Transcribe] Soniox file ID: ${sonioxFileId}`);
 
@@ -1385,13 +1404,14 @@ app.post('/api/labs/discussions/:discussionId/audio', express.raw({ type: ['audi
     return res.status(400).json({ error: 'No audio data received.' });
   }
 
-  const fileName = `${discussionId}/${Date.now()}.webm`;
+  const upload = getAudioUploadMetadata(req, `${Date.now()}`);
+  const fileName = `${discussionId}/${upload.filename}`;
 
   try {
     let { data: uploadData, error: uploadError } = await supabaseAdmin.storage
       .from('lab-discussion-audio')
       .upload(fileName, audioBuffer, {
-        contentType: 'audio/webm',
+        contentType: upload.mimeType,
         cacheControl: '3600',
         upsert: false
       });
@@ -1402,7 +1422,7 @@ app.post('/api/labs/discussions/:discussionId/audio', express.raw({ type: ['audi
         const retry = await supabaseAdmin.storage
           .from('lab-discussion-audio')
           .upload(fileName, audioBuffer, {
-            contentType: 'audio/webm',
+            contentType: upload.mimeType,
             cacheControl: '3600',
             upsert: false
           });
@@ -1466,6 +1486,7 @@ app.post('/api/labs/discussions/:discussionId/transcribe', async (req, res) => {
       return res.status(500).json({ error: `Failed to download audio: ${downloadError?.message || 'Unknown error'}` });
     }
 
+    const audioMimeType = audioData.type || mimeTypeFromFilename(discussion.audio_path);
     const audioBuffer = Buffer.from(await audioData.arrayBuffer());
 
     res.json({ message: 'Lab discussion transcription started.', status: 'processing' });
@@ -1473,7 +1494,7 @@ app.post('/api/labs/discussions/:discussionId/transcribe', async (req, res) => {
     (async () => {
       try {
         const filename = discussion.audio_path.split('/').pop() || 'lab-discussion.webm';
-        const uploadResult = await uploadToSoniox(audioBuffer, filename);
+        const uploadResult = await uploadToSoniox(audioBuffer, filename, audioMimeType);
         sonioxFileId = uploadResult.id;
 
         const config = buildLabDiscussionTranscriptionConfig(sonioxFileId, participantDoctors);
