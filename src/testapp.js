@@ -1,6 +1,6 @@
 import { getServerUrl } from './app-config.js';
 import { appState } from './app-state.js';
-import { getRecorderOptions, normalizeRecordedAudio } from './audio-utils.js';
+import { createAudioRecorder, normalizeRecordedAudio } from './audio-utils.js';
 
 const state = {
   mode: 'consultation',
@@ -493,10 +493,7 @@ function renderMockDoctors() {
 async function startRecording() {
   try {
     state.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const recorderOptions = getRecorderOptions();
-    state.mediaRecorder = recorderOptions
-      ? new MediaRecorder(state.stream, recorderOptions)
-      : new MediaRecorder(state.stream);
+    state.mediaRecorder = createAudioRecorder(state.stream);
     state.chunks = [];
 
     state.mediaRecorder.ondataavailable = event => {
@@ -504,7 +501,7 @@ async function startRecording() {
     };
 
     state.mediaRecorder.onstop = async () => {
-      const recordedMimeType = state.mediaRecorder.mimeType || state.chunks[0]?.type || recorderOptions?.mimeType || 'audio/webm';
+      const recordedMimeType = state.mediaRecorder.mimeType || state.chunks[0]?.type || 'audio/webm';
       const recordedBlob = new Blob(state.chunks, { type: recordedMimeType });
       state.stream.getTracks().forEach(track => track.stop());
       const audioBlob = await normalizeRecordedAudio(recordedBlob);

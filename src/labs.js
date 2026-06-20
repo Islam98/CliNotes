@@ -1,6 +1,6 @@
 import { api } from './api.js';
 import { applyStaticTranslations, mountLanguageToggle } from './i18n.js';
-import { getRecorderOptions, normalizeRecordedAudio } from './audio-utils.js';
+import { createAudioRecorder, normalizeRecordedAudio } from './audio-utils.js';
 
 applyStaticTranslations();
 mountLanguageToggle();
@@ -62,10 +62,7 @@ startBtn.addEventListener('click', async () => {
     currentDiscussionId = discussion.id;
 
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const recorderOptions = getRecorderOptions();
-    mediaRecorder = recorderOptions
-      ? new MediaRecorder(stream, recorderOptions)
-      : new MediaRecorder(stream);
+    mediaRecorder = createAudioRecorder(stream);
     audioChunks = [];
 
     mediaRecorder.ondataavailable = event => {
@@ -73,7 +70,7 @@ startBtn.addEventListener('click', async () => {
     };
 
     mediaRecorder.onstop = async () => {
-      const recordedMimeType = mediaRecorder.mimeType || audioChunks[0]?.type || recorderOptions?.mimeType || 'audio/webm';
+      const recordedMimeType = mediaRecorder.mimeType || audioChunks[0]?.type || 'audio/webm';
       const recordedBlob = new Blob(audioChunks, { type: recordedMimeType });
       const audioBlob = await normalizeRecordedAudio(recordedBlob);
       stream.getTracks().forEach(track => track.stop());
