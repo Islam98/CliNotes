@@ -1,4 +1,18 @@
 import { supabase } from './supabase.js';
+import { getAppLanguage } from './i18n.js';
+import { getServerUrl } from './app-config.js';
+
+async function requireSessionToken() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error("Not authenticated");
+  return session.access_token;
+}
+
+async function readJsonResponse(response, fallbackMessage) {
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || fallbackMessage);
+  return data;
+}
 
 export const api = {
   // ==============================
@@ -227,17 +241,14 @@ export const api = {
     },
 
     async getDoctorBookedSlots(doctorId, date) {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Not authenticated");
+      const token = await requireSessionToken();
 
-      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const serverUrl = getServerUrl();
       const response = await fetch(`${serverUrl}/api/doctors/${doctorId}/booked-slots?date=${encodeURIComponent(date)}`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Could not load booked slots.');
-      return data;
+      return readJsonResponse(response, 'Could not load booked slots.');
     },
     
     /**
@@ -278,7 +289,7 @@ export const api = {
      * Upload an audio file to Supabase Storage (Proxied to bypass RLS)
      */
     async uploadAudio(consultationId, audioBlobOrFile) {
-      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const serverUrl = getServerUrl();
       
       const response = await fetch(`${serverUrl}/api/upload-audio/${consultationId}`, {
         method: 'POST',
@@ -377,11 +388,11 @@ export const api = {
      * Calls the Express server endpoint which handles the Soniox API.
      */
     async triggerTranscription(consultationId) {
-      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const serverUrl = getServerUrl();
       const response = await fetch(`${serverUrl}/api/transcribe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ consultationId }),
+        body: JSON.stringify({ consultationId, language: getAppLanguage() }),
       });
 
       if (!response.ok) {
@@ -396,7 +407,7 @@ export const api = {
      * Get the transcript for a consultation (polls the Express server).
      */
     async getTranscriptStatus(consultationId) {
-      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const serverUrl = getServerUrl();
       const response = await fetch(`${serverUrl}/api/transcribe/${consultationId}`);
 
       if (!response.ok) {
@@ -517,41 +528,35 @@ export const api = {
     },
 
     async generatePatientSummary(structuredData) {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Not authenticated");
+      const token = await requireSessionToken();
 
-      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const serverUrl = getServerUrl();
       const response = await fetch(`${serverUrl}/api/patient-summary`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ structuredData }),
+        body: JSON.stringify({ structuredData, language: getAppLanguage() }),
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Could not generate patient summary.');
-      return data;
+      return readJsonResponse(response, 'Could not generate patient summary.');
     },
 
     async generatePatientContext(patientId) {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Not authenticated");
+      const token = await requireSessionToken();
 
-      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const serverUrl = getServerUrl();
       const response = await fetch(`${serverUrl}/api/patient-context`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ patientId }),
+        body: JSON.stringify({ patientId, language: getAppLanguage() }),
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Could not generate patient context.');
-      return data;
+      return readJsonResponse(response, 'Could not generate patient context.');
     },
 
     /**
@@ -568,7 +573,7 @@ export const api = {
     },
 
     async verifyLabDoctor(email, password) {
-      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const serverUrl = getServerUrl();
       const response = await fetch(`${serverUrl}/api/labs/verify-doctor`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -581,7 +586,7 @@ export const api = {
     },
 
     async createLabDiscussion(title, participantIds) {
-      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const serverUrl = getServerUrl();
       const response = await fetch(`${serverUrl}/api/labs/discussions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -594,7 +599,7 @@ export const api = {
     },
 
     async uploadLabDiscussionAudio(discussionId, audioBlobOrFile) {
-      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const serverUrl = getServerUrl();
       const response = await fetch(`${serverUrl}/api/labs/discussions/${discussionId}/audio`, {
         method: 'POST',
         headers: { 'Content-Type': audioBlobOrFile.type || 'audio/webm' },
@@ -607,9 +612,11 @@ export const api = {
     },
 
     async triggerLabDiscussionTranscription(discussionId) {
-      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const serverUrl = getServerUrl();
       const response = await fetch(`${serverUrl}/api/labs/discussions/${discussionId}/transcribe`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language: getAppLanguage() }),
       });
 
       const data = await response.json();
@@ -618,57 +625,47 @@ export const api = {
     },
 
     async getLabDiscussions() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Not authenticated");
+      const token = await requireSessionToken();
 
-      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const serverUrl = getServerUrl();
       const response = await fetch(`${serverUrl}/api/labs/doctor-discussions`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Could not load lab discussions.');
-      return data;
+      return readJsonResponse(response, 'Could not load lab discussions.');
     },
 
     async approveLabDiscussion(discussionId) {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Not authenticated");
+      const token = await requireSessionToken();
 
-      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const serverUrl = getServerUrl();
       const response = await fetch(`${serverUrl}/api/labs/discussions/${discussionId}/approve`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Could not approve lab discussion.');
-      return data;
+      return readJsonResponse(response, 'Could not approve lab discussion.');
     },
 
     async deleteLabDiscussion(discussionId) {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Not authenticated");
+      const token = await requireSessionToken();
 
-      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const serverUrl = getServerUrl();
       const response = await fetch(`${serverUrl}/api/labs/discussions/${discussionId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Could not remove lab discussion.');
-      return data;
+      return readJsonResponse(response, 'Could not remove lab discussion.');
     },
 
     async createPatientAppleWalletPass(patientId) {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Not authenticated");
+      const token = await requireSessionToken();
 
-      const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+      const serverUrl = getServerUrl();
       const response = await fetch(`${serverUrl}/api/patients/${patientId}/apple-wallet-pass`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (!response.ok) {

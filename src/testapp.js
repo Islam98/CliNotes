@@ -1,7 +1,9 @@
+import { getServerUrl } from './app-config.js';
+import { appState } from './app-state.js';
+
 const state = {
   mode: 'consultation',
-  language: 'en',
-  geminiModel: 'gemini-3.5-flash',
+  language: appState.language,
   mediaRecorder: null,
   stream: null,
   chunks: [],
@@ -13,7 +15,7 @@ const state = {
   lastAudioBlob: null,
   lastAudioExtension: 'webm',
   currentRunBaseName: '',
-  testPassword: sessionStorage.getItem('clinotes_test_password') || '',
+  testPassword: appState.testPassword,
 };
 
 const els = {
@@ -37,12 +39,6 @@ const els = {
   modeSubtitle: document.getElementById('modeSubtitle'),
   modePill: document.getElementById('modePill'),
   labsFields: document.getElementById('labsFields'),
-  modelPickerLabel: document.getElementById('modelPickerLabel'),
-  modelPickerHint: document.getElementById('modelPickerHint'),
-  gemini35Btn: document.getElementById('gemini35Btn'),
-  gemini35Label: document.getElementById('gemini35Label'),
-  gemini31LiteBtn: document.getElementById('gemini31LiteBtn'),
-  gemini31LiteLabel: document.getElementById('gemini31LiteLabel'),
   mockDoctorsLabel: document.getElementById('mockDoctorsLabel'),
   mockDoctorsInput: document.getElementById('mockDoctorsInput'),
   addMockDoctorBtn: document.getElementById('addMockDoctorBtn'),
@@ -84,10 +80,6 @@ const copy = {
     labsSubtitle: 'Add mock doctor names, record an internal discussion, and inspect the report that would be sent to participating doctors.',
     consultationPill: 'Consultation',
     labsPill: 'Labs Mode',
-    modelPicker: 'Gemini model',
-    modelPickerHint: 'Choose better analysis or faster results for this test run.',
-    betterAnalysis: 'Better analysis',
-    fasterResults: 'Faster results',
     mockDoctors: 'Mock participating doctors',
     add: 'Add',
     ready: 'Ready to record',
@@ -209,10 +201,6 @@ const copy = {
     labsSubtitle: 'أضف أسماء أطباء افتراضيين، وسجل نقاشا داخليا، ثم راجع التقرير الذي سيرسل إلى الأطباء المشاركين.',
     consultationPill: 'استشارة',
     labsPill: 'نقاش أطباء',
-    modelPicker: 'نموذج Gemini',
-    modelPickerHint: 'اختر بين تحليل أدق أو نتائج أسرع لهذا الاختبار.',
-    betterAnalysis: 'تحليل أدق',
-    fasterResults: 'نتائج أسرع',
     mockDoctors: 'أطباء مشاركون في الاختبار',
     add: 'إضافة',
     ready: 'جاهز للتسجيل',
@@ -331,8 +319,6 @@ initializePasswordGate();
 els.testPasswordForm.addEventListener('submit', handlePasswordSubmit);
 els.englishToggleBtn.addEventListener('click', () => setLanguage('en'));
 els.arabicToggleBtn.addEventListener('click', () => setLanguage('ar'));
-els.gemini35Btn.addEventListener('click', () => setGeminiModel('gemini-3.5-flash'));
-els.gemini31LiteBtn.addEventListener('click', () => setGeminiModel('gemini-3.1-flash-lite'));
 els.consultationModeBtn.addEventListener('click', () => setMode('consultation'));
 els.labsModeBtn.addEventListener('click', () => setMode('labs'));
 els.downloadAudioBtn.addEventListener('click', downloadRecordedAudio);
@@ -376,7 +362,7 @@ async function initializePasswordGate() {
     await verifyTestPassword(state.testPassword);
     unlockPage();
   } catch {
-    sessionStorage.removeItem('clinotes_test_password');
+    appState.clearTestPassword();
     state.testPassword = '';
     els.testPasswordOverlay.classList.remove('hidden');
   }
@@ -392,7 +378,7 @@ async function handlePasswordSubmit(event) {
   try {
     await verifyTestPassword(password);
     state.testPassword = password;
-    sessionStorage.setItem('clinotes_test_password', password);
+    appState.testPassword = password;
     unlockPage();
   } catch (error) {
     els.testPasswordError.textContent = error.message || 'Invalid password.';
@@ -424,6 +410,7 @@ async function verifyTestPassword(password) {
 function setLanguage(language) {
   if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') return;
   state.language = language;
+  appState.language = language;
   state.lastRecommendedActions = [];
   resetLastRun();
   renderStaticText();
@@ -432,12 +419,6 @@ function setLanguage(language) {
   els.outputContent.className = 'empty-output';
   els.outputContent.textContent = t('emptyOutput');
   updateDownloadButtons();
-}
-
-function setGeminiModel(model) {
-  if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') return;
-  state.geminiModel = model;
-  renderGeminiModelToggle();
 }
 
 function renderStaticText() {
@@ -451,10 +432,6 @@ function renderStaticText() {
   setBidiContent(els.heroDescription, t('heroDescription'));
   setBidiContent(els.consultationModeLabel, t('consultationMode'));
   setBidiContent(els.labsModeLabel, t('labsMode'));
-  setBidiContent(els.modelPickerLabel, t('modelPicker'));
-  setBidiContent(els.modelPickerHint, t('modelPickerHint'));
-  setBidiContent(els.gemini35Label, t('betterAnalysis'));
-  setBidiContent(els.gemini31LiteLabel, t('fasterResults'));
   setBidiContent(els.mockDoctorsLabel, t('mockDoctors'));
   setBidiContent(els.addDoctorLabel, t('add'));
   setBidiContent(els.startRecordLabel, t('startRecording'));
@@ -468,12 +445,6 @@ function renderStaticText() {
   if (els.outputContent.classList.contains('empty-output')) {
     els.outputContent.innerHTML = formatBidiText(t('emptyOutput'));
   }
-  renderGeminiModelToggle();
-}
-
-function renderGeminiModelToggle() {
-  els.gemini35Btn.classList.toggle('active', state.geminiModel === 'gemini-3.5-flash');
-  els.gemini31LiteBtn.classList.toggle('active', state.geminiModel === 'gemini-3.1-flash-lite');
 }
 
 function renderMode() {
@@ -595,7 +566,7 @@ async function runPipeline(audioBlob, { originalFilename = '' } = {}) {
     setTimeout(() => renderDiagnostics(3), 1200);
     setTimeout(() => renderDiagnostics(4), 2400);
 
-    const result = await submitAudio(audioBlob);
+    const result = await submitAudio(audioBlob, { originalFilename });
 
     renderDiagnostics(5, true);
     setBidiContent(els.outputSubtitle, t('pipelineComplete'));
@@ -619,18 +590,19 @@ async function runPipeline(audioBlob, { originalFilename = '' } = {}) {
   }
 }
 
-async function submitAudio(audioBlob) {
+async function submitAudio(audioBlob, { originalFilename = '' } = {}) {
   const serverUrl = getServerUrl();
   const languageQuery = `language=${encodeURIComponent(state.language)}`;
-  const modelQuery = `model=${encodeURIComponent(state.geminiModel)}`;
   const endpoint = state.mode === 'labs'
-    ? `${serverUrl}/api/test/lab-discussion?participants=${encodeURIComponent(state.mockDoctors.join(','))}&${languageQuery}&${modelQuery}`
-    : `${serverUrl}/api/test/consultation?${languageQuery}&${modelQuery}`;
+    ? `${serverUrl}/api/test/lab-discussion?participants=${encodeURIComponent(state.mockDoctors.join(','))}&${languageQuery}`
+    : `${serverUrl}/api/test/consultation?${languageQuery}`;
 
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
-      'Content-Type': audioBlob.type || 'audio/webm',
+      'Content-Type': audioBlob.type || 'application/octet-stream',
+      'X-Audio-Filename': encodeURIComponent(originalFilename || `clinotes-recording.${getAudioExtension(audioBlob)}`),
+      'X-Audio-Mime': audioBlob.type || 'application/octet-stream',
       'X-Test-App-Password': state.testPassword,
     },
     body: audioBlob,
@@ -646,11 +618,6 @@ async function submitAudio(audioBlob) {
 
   if (!response.ok) throw new Error(data.error || t('requestFailed'));
   return data;
-}
-
-function getServerUrl() {
-  if (import.meta.env.VITE_SERVER_URL) return import.meta.env.VITE_SERVER_URL;
-  return window.location.port === '5173' ? 'http://localhost:3000' : window.location.origin;
 }
 
 function renderOutput(result) {
@@ -730,7 +697,7 @@ function downloadDisplayedResults() {
     <header>
       <div class="brand">${escapeHtml(t('printBrand'))}</div>
       <h1>${escapeHtml(modeLabel)}</h1>
-      <div class="meta">${escapeHtml(t('printed'))}: ${escapeHtml(timestamp.toLocaleString())} · ${escapeHtml(state.lastResult.gemini_model || state.geminiModel)}</div>
+      <div class="meta">${escapeHtml(t('printed'))}: ${escapeHtml(timestamp.toLocaleString())} · ${escapeHtml(state.lastResult.gemini_model || 'gemini-3.1-flash-lite')}</div>
     </header>
     <section class="content">
       ${els.outputContent.innerHTML}

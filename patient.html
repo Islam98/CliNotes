@@ -17,8 +17,8 @@
       <div class="app-logo">CliNotes</div>
     </div>
     <div class="top-bar-center">
-      <a href="#" class="nav-link active">Dashboard</a>
-      <a href="/patient-records.html" class="nav-link" id="recordsNavLink">My Records</a>
+      <a href="#" class="nav-link active" data-i18n="dashboard">Dashboard</a>
+      <a href="/patient-records.html" class="nav-link" id="recordsNavLink" data-i18n="myRecords">My Records</a>
     </div>
     <div class="top-bar-right">
       <div class="settings-btn"><i class="uil uil-setting"></i></div>
@@ -30,7 +30,7 @@
     <section class="welcome-section">
       <div class="welcome-left">
         <h1 class="greeting">Loading...</h1>
-        <p class="subtext">Here’s a summary of your recent health activity</p>
+        <p class="subtext" data-i18n="patientDashboardSubtitle">Here’s a summary of your recent health activity</p>
       </div>
       <div class="welcome-right">
         <button class="patient-card-btn" id="viewPatientCardBtn">
@@ -39,15 +39,15 @@
         </button>
         <button class="book-btn" id="bookConsultationBtn">
           <i class="uil uil-calendar-plus"></i>
-          Book Consultation
+          <span data-i18n="bookConsultation">Book Consultation</span>
         </button>
         <div class="stat-card">
           <span class="stat-value" id="upcomingVisit">—</span>
-          <span class="stat-label">Upcoming Consultation</span>
+          <span class="stat-label" data-i18n="upcomingConsultation">Upcoming Consultation</span>
         </div>
         <div class="stat-card">
           <span class="stat-value" id="lastVisit">—</span>
-          <span class="stat-label">Last Visit</span>
+          <span class="stat-label" data-i18n="lastVisit">Last Visit</span>
         </div>
       </div>
     </section>
@@ -57,9 +57,9 @@
       <section class="col-8">
         <div class="card consultation-overview">
           <div class="card-header">
-            <h2>Last Consultation</h2>
+            <h2 data-i18n="lastConsultation">Last Consultation</h2>
             <div class="header-actions">
-              <button class="audio-btn" id="viewTranscriptBtn"><i class="uil uil-file-alt"></i> View Transcript</button>
+              <button class="audio-btn" id="viewTranscriptBtn"><i class="uil uil-file-alt"></i> <span data-i18n="viewTranscript">View Transcript</span></button>
             </div>
           </div>
           <div class="card-body">
@@ -76,7 +76,7 @@
       <section class="col-4">
         <div class="card actions-required">
           <div class="card-header recommendations-header">
-            <h2><i class="uil uil-clipboard-notes"></i> Actions Required</h2>
+            <h2><i class="uil uil-clipboard-notes"></i> <span data-i18n="actionsRequired">Actions Required</span></h2>
           </div>
           <div class="card-body" id="actionsRequiredList">
              <!-- Actions loaded via JS -->
@@ -87,7 +87,7 @@
       <section class="col-12">
         <div class="card documents-files">
           <div class="card-header border-bottom">
-            <h2>Documents & Files</h2>
+            <h2 data-i18n="documentsFiles">Documents & Files</h2>
             <div class="docs-tabs">
               <button class="doc-tab active">All</button>
               <button class="doc-tab">Prescriptions</button>
@@ -110,7 +110,7 @@
     <div class="modal-content booking-modal-content">
       <div class="modal-header">
         <div>
-          <h3>Book Consultation</h3>
+          <h3 data-i18n="bookConsultation">Book Consultation</h3>
           <p class="modal-subtitle" id="bookingStepLabel">Choose a specialty</p>
         </div>
         <button class="close-btn" id="closeBookingModalBtn"><i class="uil uil-times"></i></button>

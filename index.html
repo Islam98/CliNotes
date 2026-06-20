@@ -39,42 +39,42 @@
         <div class="login-form-container">
           <div class="login-card">
             <div class="login-header">
-              <h2>Welcome back</h2>
-              <p>Please enter your details to sign in.</p>
+              <h2 data-i18n="welcomeBack">Welcome back</h2>
+              <p data-i18n="signInSubtitle">Please enter your details to sign in.</p>
             </div>
 
             <div class="role-selector">
               <button class="role-btn active" data-role="doctor">
                 <i class="uil uil-stethoscope"></i>
-                <span>Doctor</span>
+                <span data-i18n="doctor">Doctor</span>
               </button>
               <button class="role-btn" data-role="patient">
                 <i class="uil uil-user"></i>
-                <span>Patient</span>
+                <span data-i18n="patient">Patient</span>
               </button>
               <button class="role-btn" data-role="labs">
                 <i class="uil uil-flask"></i>
-                <span>Labs</span>
+                <span data-i18n="labs">Labs</span>
               </button>
             </div>
 
             <div class="auth-toggle-wrapper">
-              <button class="auth-toggle-btn active" id="toggle-login">Login</button>
-              <button class="auth-toggle-btn" id="toggle-signup">Sign Up</button>
+              <button class="auth-toggle-btn active" id="toggle-login" data-i18n="login">Login</button>
+              <button class="auth-toggle-btn" id="toggle-signup" data-i18n="signUp">Sign Up</button>
             </div>
 
             <form id="login-form" class="auth-form">
               <!-- Name (Signup Only) -->
               <div class="input-row signup-only" style="display: none;">
                 <div class="input-group flex-1">
-                  <label for="firstName">First Name</label>
+                  <label for="firstName" data-i18n="firstName">First Name</label>
                   <div class="input-wrapper">
                     <i class="uil uil-user input-icon"></i>
                     <input type="text" id="firstName" placeholder="First Name" />
                   </div>
                 </div>
                 <div class="input-group flex-1">
-                  <label for="lastName">Last Name</label>
+                  <label for="lastName" data-i18n="lastName">Last Name</label>
                   <div class="input-wrapper">
                     <i class="uil uil-user input-icon"></i>
                     <input type="text" id="lastName" placeholder="Last Name" />
@@ -84,7 +84,7 @@
 
               <!-- Email -->
               <div class="input-group">
-                <label for="email">Email</label>
+                <label for="email" data-i18n="email">Email</label>
                 <div class="input-wrapper">
                   <i class="uil uil-envelope input-icon"></i>
                   <input type="email" id="email" placeholder="Enter your email" required />
@@ -93,7 +93,7 @@
 
               <!-- Password -->
               <div class="input-group">
-                <label for="password">Password</label>
+                <label for="password" data-i18n="password">Password</label>
                 <div class="input-wrapper">
                   <i class="uil uil-lock-alt input-icon"></i>
                   <input type="password" id="password" placeholder="••••••••" required />
@@ -106,7 +106,7 @@
               <!-- Doctor Fields (Signup Only) -->
               <div class="signup-fields-doctor" style="display: none;">
                 <div class="input-group">
-                  <label for="specialty">Specialty</label>
+                  <label for="specialty" data-i18n="specialty">Specialty</label>
                   <div class="input-wrapper">
                     <i class="uil uil-medical-drip input-icon"></i>
                     <select id="specialty" class="form-select">
@@ -125,13 +125,13 @@
               <div class="signup-fields-patient" style="display: none;">
                 <div class="input-row">
                   <div class="input-group flex-1">
-                    <label for="age">Age</label>
+                    <label for="age" data-i18n="age">Age</label>
                     <div class="input-wrapper">
                       <input type="number" id="age" placeholder="e.g. 30" min="0" max="150" />
                     </div>
                   </div>
                   <div class="input-group flex-1">
-                    <label for="gender">Gender</label>
+                    <label for="gender" data-i18n="gender">Gender</label>
                     <div class="input-wrapper">
                       <select id="gender" class="form-select">
                         <option value="">Select...</option>

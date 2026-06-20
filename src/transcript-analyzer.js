@@ -1,3 +1,6 @@
+import { getAppLanguage } from './i18n.js';
+import { getServerUrl } from './app-config.js';
+
 /**
  * Analyzes a given transcript (markdown or raw text) and extracts medical terms, 
  * diagnoses, action items, and other important information.
@@ -7,12 +10,12 @@
  */
 export async function analyzeTranscript(transcriptText) {
   try {
-    const response = await fetch('http://localhost:3000/api/analyze-transcript', {
+    const response = await fetch(`${getServerUrl()}/api/analyze-transcript`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ transcriptText })
+      body: JSON.stringify({ transcriptText, language: getAppLanguage() })
     });
 
     if (!response.ok) {

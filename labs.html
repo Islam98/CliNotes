@@ -14,25 +14,25 @@
 <body class="labs-body">
   <header class="labs-topbar">
     <a href="/" class="labs-logo">CliNotes</a>
-    <span class="labs-pill">Labs</span>
+    <span class="labs-pill" data-i18n="labs">Labs</span>
   </header>
 
   <main class="labs-container">
     <section class="labs-hero">
       <div>
-        <h1>Internal Doctor Discussion</h1>
-        <p>Record clinical discussions between doctors, transcribe them, and generate a reviewable report for every participant.</p>
+        <h1 data-i18n="internalDoctorDiscussion">Internal Doctor Discussion</h1>
+        <p data-i18n="labsHero">Record clinical discussions between doctors, transcribe them, and generate a reviewable report for every participant.</p>
       </div>
       <button class="start-discussion-btn" id="startDiscussionBtn">
         <i class="uil uil-microphone"></i>
-        Start Labs Discussion
+        <span data-i18n="startLabsDiscussion">Start Labs Discussion</span>
       </button>
     </section>
 
     <section class="labs-grid">
       <div class="labs-card participants-card">
         <div class="labs-card-header">
-          <h2>Participating Doctors</h2>
+          <h2 data-i18n="participatingDoctors">Participating Doctors</h2>
           <span id="participantCount">0 added</span>
         </div>
         <div class="participants-window" id="participantsList">
@@ -42,13 +42,13 @@
 
       <div class="labs-card add-doctor-card">
         <div class="labs-card-header">
-          <h2>Add Doctor</h2>
+          <h2 data-i18n="addDoctor">Add Doctor</h2>
         </div>
         <form id="addDoctorForm" class="doctor-credential-form">
-          <label for="doctorEmail">Doctor email</label>
+          <label for="doctorEmail" data-i18n="doctorEmail">Doctor email</label>
           <input id="doctorEmail" type="email" placeholder="doctor@example.com" required>
 
-          <label for="doctorPassword">Password</label>
+          <label for="doctorPassword" data-i18n="password">Password</label>
           <input id="doctorPassword" type="password" placeholder="Password" required>
 
           <button type="submit" class="secondary-action-btn">

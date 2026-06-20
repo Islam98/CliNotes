@@ -1,7 +1,10 @@
 import './style.css'
 import { api } from './api.js'
+import { applyStaticTranslations, mountLanguageToggle, t } from './i18n.js'
 
 document.addEventListener('DOMContentLoaded', () => {
+  applyStaticTranslations();
+  mountLanguageToggle();
   // Elements
   const roleButtons = document.querySelectorAll('.role-btn');
   const loginForm = document.getElementById('login-form');
@@ -20,11 +23,11 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentRole = 'doctor';
   let isSignup = false;
 
-  const roleLabels = {
-    doctor: 'Doctor',
-    patient: 'Patient',
-    labs: 'Labs'
-  };
+  const getRoleLabel = role => ({
+    doctor: t('doctor'),
+    patient: t('patient'),
+    labs: t('labs')
+  }[role] || role);
 
   // Role Selection
   roleButtons.forEach(btn => {
@@ -77,13 +80,15 @@ document.addEventListener('DOMContentLoaded', () => {
         signupDoctorElements.forEach(el => el.style.display = 'none');
         signupPatientElements.forEach(el => el.style.display = 'none');
       }
-      submitBtn.innerHTML = `Sign Up as ${roleLabels[currentRole] || currentRole}`;
+      submitBtn.innerHTML = t('signUpAs', { role: getRoleLabel(currentRole) });
     } else {
       signupDoctorElements.forEach(el => el.style.display = 'none');
       signupPatientElements.forEach(el => el.style.display = 'none');
-      submitBtn.innerHTML = 'Sign In to Dashboard';
+      submitBtn.innerHTML = t('signInDashboard');
     }
   }
+
+  window.addEventListener('clinotes-language-change', updateFormUI);
 
   // Password Visibility Toggle
   const togglePwdBtn = document.getElementById('toggle-pwd');

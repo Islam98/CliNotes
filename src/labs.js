@@ -1,4 +1,8 @@
 import { api } from './api.js';
+import { applyStaticTranslations, mountLanguageToggle } from './i18n.js';
+
+applyStaticTranslations();
+mountLanguageToggle();
 
 const participants = [];
 let mediaRecorder = null;

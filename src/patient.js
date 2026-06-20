@@ -1,6 +1,9 @@
 import { api } from './api.js';
+import { applyStaticTranslations, mountLanguageToggle } from './i18n.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
+  applyStaticTranslations();
+  mountLanguageToggle();
   const state = {
     profile: null,
     consultations: [],

@@ -53,24 +53,24 @@
         <!-- ROW 0: Work Queue Summary -->
         <div class="col-12 dashboard-summary-row">
           <div class="metric-card">
-            <span class="metric-label">Scheduled Today</span>
+            <span class="metric-label" data-i18n="scheduledToday">Scheduled Today</span>
             <strong id="scheduledCount">0</strong>
           </div>
           <div class="metric-card">
-            <span class="metric-label">Processing</span>
+            <span class="metric-label" data-i18n="processing">Processing</span>
             <strong id="processingCount">0</strong>
           </div>
           <div class="metric-card">
-            <span class="metric-label">Ready for Review</span>
+            <span class="metric-label" data-i18n="readyForReview">Ready for Review</span>
             <strong id="readyCount">0</strong>
           </div>
           <div class="metric-card">
-            <span class="metric-label">Reviewed Today</span>
+            <span class="metric-label" data-i18n="reviewedToday">Reviewed Today</span>
             <strong id="reviewedCount">0</strong>
           </div>
           <div class="quick-actions-row">
           <button class="primary-btn prominent-start-btn" id="startConsultationBtn">
-            <i class="uil uil-record-audio"></i> Start New Consultation
+            <i class="uil uil-record-audio"></i> <span data-i18n="startNewConsultation">Start New Consultation</span>
           </button>
           </div>
         </div>
@@ -79,8 +79,8 @@
         <!-- Today's Schedule -->
         <div class="card schedule-card col-8">
           <div class="card-header">
-            <h3>Today's Schedule</h3>
-            <span class="section-hint">Select a patient for context</span>
+            <h3 data-i18n="todaysSchedule">Today's Schedule</h3>
+            <span class="section-hint" data-i18n="selectPatientContext">Select a patient for context</span>
           </div>
           <div class="card-body list-body">
             <!-- Data will be loaded via JS -->
@@ -90,11 +90,11 @@
         <!-- Patient Preview -->
         <div class="card summary-card col-4">
           <div class="card-header">
-            <h3>Patient Context</h3>
+            <h3 data-i18n="patientContext">Patient Context</h3>
           </div>
           <div class="card-body" id="patientPreviewContainer">
             <div class="empty-state-grey" style="color: #9CA3AF; text-align: center; padding: 32px 16px; font-style: italic;">
-              Select a scheduled patient to view context
+              <span data-i18n="selectScheduledPatient">Select a scheduled patient to view context</span>
             </div>
           </div>
         </div>
@@ -102,7 +102,7 @@
         <!-- ROW 2: Draft Notes for Review (PRIMARY) -->
         <div class="card drafts-card col-12 primary-section">
           <div class="card-header">
-            <h2>Draft Notes for Review</h2>
+            <h2 data-i18n="draftNotesReview">Draft Notes for Review</h2>
             <span class="badge count-badge">3 Pending</span>
           </div>
           <div class="card-body list-body">
@@ -113,7 +113,7 @@
         <!-- ROW 3: Recommended Actions / Completed -->
         <div class="card recommended-actions-card col-6">
           <div class="card-header">
-            <h3>Recommended Actions</h3>
+            <h3 data-i18n="recommendedActions">Recommended Actions</h3>
           </div>
           <div class="card-body list-body">
              <!-- Recommended actions will be loaded via JS -->
@@ -122,8 +122,8 @@
 
         <div class="card lab-discussions-card col-6">
           <div class="card-header">
-            <h3>Lab Discussions</h3>
-            <span class="section-hint">Reviewed internal discussions</span>
+            <h3 data-i18n="labDiscussions">Lab Discussions</h3>
+            <span class="section-hint" data-i18n="reviewedInternalDiscussions">Reviewed internal discussions</span>
           </div>
           <div class="card-body list-body">
             <!-- Lab discussions will be loaded via JS -->
@@ -132,7 +132,7 @@
 
         <div class="card history-card col-12">
           <div class="card-header">
-            <h3>Completed Consultations</h3>
+            <h3 data-i18n="completedConsultations">Completed Consultations</h3>
           </div>
           <div class="card-body list-body">
             <!-- Session History will be loaded via JS -->

@@ -24,8 +24,7 @@ app.use(express.json());
 
 // ─── Gemini Client ───
 const geminiApiKey = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
-const TEST_GEMINI_MODELS = new Set(['gemini-3.5-flash', 'gemini-3.1-flash-lite']);
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
 let gemini;
 if (geminiApiKey && geminiApiKey !== 'your_gemini_api_key_here') {
   gemini = new GoogleGenerativeAI(geminiApiKey);
@@ -71,9 +70,51 @@ async function sonioxFetch(endpoint, { method = 'GET', body, headers = {} } = {}
   return method !== 'DELETE' ? res.json() : null;
 }
 
-async function uploadToSoniox(audioBuffer, filename) {
+function decodeHeaderFilename(value, fallbackFilename) {
+  try {
+    return value ? decodeURIComponent(value) : fallbackFilename;
+  } catch {
+    return value || fallbackFilename;
+  }
+}
+
+function getAudioUploadMetadata(req, fallbackFilename) {
+  const rawFilename = String(req.headers['x-audio-filename'] || '').trim();
+  const decodedFilename = decodeHeaderFilename(rawFilename, fallbackFilename);
+  let safeFilename = decodedFilename
+    .split(/[\\/]/)
+    .pop()
+    .replace(/[^\w.\-() ]+/g, '-')
+    || fallbackFilename;
+  const mimeType = String(req.headers['x-audio-mime'] || req.headers['content-type'] || 'application/octet-stream').split(';')[0];
+  if (!/\.[a-z0-9]{2,5}$/i.test(safeFilename)) {
+    safeFilename = `${safeFilename}.${extensionFromMimeType(mimeType)}`;
+  }
+  return { filename: safeFilename, mimeType };
+}
+
+function extensionFromMimeType(mimeType = '') {
+  return {
+    'audio/webm': 'webm',
+    'audio/mpeg': 'mp3',
+    'audio/mp3': 'mp3',
+    'audio/mp4': 'm4a',
+    'audio/x-m4a': 'm4a',
+    'audio/wav': 'wav',
+    'audio/x-wav': 'wav',
+    'audio/ogg': 'ogg',
+    'audio/aac': 'aac',
+    'audio/flac': 'flac',
+    'video/mp4': 'mp4',
+    'video/quicktime': 'mov',
+    'audio/amr': 'amr',
+    'audio/3gpp': '3gp',
+  }[mimeType] || 'webm';
+}
+
+async function uploadToSoniox(audioBuffer, filename, mimeType = 'application/octet-stream') {
   const form = new FormData();
-  form.append('file', new Blob([audioBuffer]), filename);
+  form.append('file', new Blob([audioBuffer], { type: mimeType }), filename);
   form.append('client_reference_id', 'clinotes-consultation');
 
   return sonioxFetch('/v1/files', { method: 'POST', body: form });
@@ -207,12 +248,12 @@ async function cleanupSoniox(transcriptionId, fileId) {
   } catch (e) { console.warn('Failed to delete Soniox file:', e.message); }
 }
 
-async function runTestAudioPipeline(audioBuffer, { filename, transcriptionConfig, analyze }) {
+async function runTestAudioPipeline(audioBuffer, { filename, mimeType, transcriptionConfig, analyze }) {
   let sonioxFileId = null;
   let sonioxTranscriptionId = null;
 
   try {
-    const uploadResult = await uploadToSoniox(audioBuffer, filename);
+    const uploadResult = await uploadToSoniox(audioBuffer, filename, mimeType);
     sonioxFileId = uploadResult.id;
 
     const transcription = await createTranscription(transcriptionConfig(sonioxFileId));
@@ -599,11 +640,6 @@ Do not bracket lab names, imaging names, abbreviations, doctor names, general te
 For plan.label in Arabic mode, use concise Arabic labels such as "دواء", "تحاليل", "أشعة", "متابعة", or "إحالة".`;
 }
 
-function getRequestedGeminiModel(req) {
-  const requestedModel = String(req.query.model || '').trim();
-  return TEST_GEMINI_MODELS.has(requestedModel) ? requestedModel : GEMINI_MODEL;
-}
-
 async function analyzeTranscriptWithGemini(transcriptText, { outputLanguage = 'en', geminiModel = GEMINI_MODEL } = {}) {
   if (!gemini) {
     throw new Error("Gemini API key is missing or invalid on the server.");
@@ -763,7 +799,7 @@ Ensure all line breaks inside string values, especially cleaned_transcript, are 
   return parseGeminiJsonResponse(response, 'lab discussion analysis', geminiModel);
 }
 
-async function generatePatientSummaryWithGemini(structuredData) {
+async function generatePatientSummaryWithGemini(structuredData, { outputLanguage = 'en' } = {}) {
   if (!gemini) {
     throw new Error("Gemini API key is missing or invalid on the server.");
   }
@@ -772,12 +808,15 @@ async function generatePatientSummaryWithGemini(structuredData) {
 You are a patient-friendly clinical explainer. Convert an approved doctor's structured note into simple language for the patient.
 Return strictly valid JSON with this shape:
 {
-  "what_you_came_for": "One short English sentence.",
-  "what_was_discussed": "One to two short English sentences.",
-  "what_the_doctor_found": "One to two short English sentences.",
-  "what_happens_next": "One to two short English sentences."
+  "what_you_came_for": "One short sentence.",
+  "what_was_discussed": "One to two short sentences.",
+  "what_the_doctor_found": "One to two short sentences.",
+  "what_happens_next": "One to two short sentences."
 }
-Always write in English, even if the source note contains Arabic or code-switched Arabic-English. Use only facts present in the structured note. Do not add new diagnoses, results, or instructions. Avoid jargon and keep the tone calm and clear.
+${outputLanguage === 'ar'
+  ? 'Write all patient-facing values in natural Modern Standard Arabic. Disease/diagnosis names may be written in Arabic followed by English in square brackets only when helpful, e.g. "السكري [diabetes]". Keep the tone calm, simple, and non-technical.'
+  : 'Always write in English, even if the source note contains Arabic or code-switched Arabic-English.'}
+Use only facts present in the structured note. Do not add new diagnoses, results, or instructions. Avoid jargon and keep the tone calm and clear.
 `;
 
   const model = gemini.getGenerativeModel({
@@ -793,7 +832,7 @@ Always write in English, even if the source note contains Arabic or code-switche
   return parseGeminiJsonResponse(response, 'patient summary');
 }
 
-async function generatePatientContextDebriefWithGemini({ patient, summaries }) {
+async function generatePatientContextDebriefWithGemini({ patient, summaries, outputLanguage = 'en' }) {
   if (!gemini) {
     throw new Error("Gemini API key is missing or invalid on the server.");
   }
@@ -810,6 +849,9 @@ Return strictly valid JSON:
   "suggested_focus": ["2-4 short bullets for what the doctor may want to clarify today"]
 }
 Keep the tone clinical, neutral, and useful. If the summaries are sparse, say that prior documentation is limited.
+${outputLanguage === 'ar'
+  ? 'Write all values in natural Modern Standard Arabic, using concise clinical language. Keep JSON keys in English.'
+  : 'Write all values in English.'}
 `;
 
   const payload = {
@@ -842,7 +884,8 @@ app.post('/api/analyze-transcript', async (req, res) => {
   }
 
   try {
-    const resultJson = await analyzeTranscriptWithGemini(transcriptText);
+    const outputLanguage = req.body?.language === 'ar' ? 'ar' : 'en';
+    const resultJson = await analyzeTranscriptWithGemini(transcriptText, { outputLanguage });
     res.json(resultJson);
   } catch (error) {
     console.error("Error analyzing transcript:", error);
@@ -876,7 +919,8 @@ app.post('/api/patient-summary', async (req, res) => {
       return res.status(403).json({ error: 'Only doctors can generate patient summaries.' });
     }
 
-    const summary = await generatePatientSummaryWithGemini(req.body?.structuredData || {});
+    const outputLanguage = req.body?.language === 'ar' ? 'ar' : 'en';
+    const summary = await generatePatientSummaryWithGemini(req.body?.structuredData || {}, { outputLanguage });
     res.json(summary);
   } catch (error) {
     res.status(500).json({ error: error.message || 'Failed to generate patient summary.' });
@@ -894,6 +938,7 @@ app.post('/api/patient-context', async (req, res) => {
   }
 
   const { patientId } = req.body || {};
+  const outputLanguage = req.body?.language === 'ar' ? 'ar' : 'en';
   if (!patientId) {
     return res.status(400).json({ error: 'patientId is required.' });
   }
@@ -943,14 +988,16 @@ app.post('/api/patient-context', async (req, res) => {
     if (summaries.length === 0) {
       return res.json({
         first_visit: true,
-        headline: 'First CliNotes visit',
-        debrief: 'This is the patient’s first recorded visit. ',
+        headline: outputLanguage === 'ar' ? 'أول زيارة في CliNotes' : 'First CliNotes visit',
+        debrief: outputLanguage === 'ar'
+          ? 'هذه أول زيارة مسجلة للمريض في CliNotes.'
+          : 'This is the patient’s first recorded visit in CliNotes.',
         key_points: [],
         suggested_focus: [],
       });
     }
 
-    const debrief = await generatePatientContextDebriefWithGemini({ patient, summaries });
+    const debrief = await generatePatientContextDebriefWithGemini({ patient, summaries, outputLanguage });
     res.json({
       first_visit: false,
       previous_summary_count: summaries.length,
@@ -962,7 +1009,7 @@ app.post('/api/patient-context', async (req, res) => {
   }
 });
 
-app.post('/api/test/consultation', requireTestAppPassword, express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '50mb' }), async (req, res) => {
+app.post('/api/test/consultation', requireTestAppPassword, express.raw({ type: '*/*', limit: '100mb' }), async (req, res) => {
   if (!SONIOX_API_KEY || SONIOX_API_KEY === 'your_soniox_api_key_here') {
     return res.status(500).json({ error: 'Soniox API key is not configured on the server.' });
   }
@@ -975,17 +1022,18 @@ app.post('/api/test/consultation', requireTestAppPassword, express.raw({ type: [
 
   try {
     const outputLanguage = req.query.language === 'ar' ? 'ar' : 'en';
-    const geminiModel = getRequestedGeminiModel(req);
+    const upload = getAudioUploadMetadata(req, `test-consultation-${Date.now()}.webm`);
     const result = await runTestAudioPipeline(req.body, {
-      filename: `test-consultation-${Date.now()}.webm`,
+      filename: upload.filename,
+      mimeType: upload.mimeType,
       transcriptionConfig: fileId => buildTranscriptionConfig(fileId),
-      analyze: transcriptText => analyzeTranscriptWithGemini(transcriptText, { outputLanguage, geminiModel }),
+      analyze: transcriptText => analyzeTranscriptWithGemini(transcriptText, { outputLanguage }),
     });
 
     res.json({
       mode: 'doctor_patient_consultation_test',
       output_language: outputLanguage,
-      gemini_model: geminiModel,
+      gemini_model: GEMINI_MODEL,
       ...result,
       doctor_display: buildDoctorSoapDisplay(result.analysis_json),
       patient_display: buildPatientDisplay(result.analysis_json),
@@ -996,7 +1044,7 @@ app.post('/api/test/consultation', requireTestAppPassword, express.raw({ type: [
   }
 });
 
-app.post('/api/test/lab-discussion', requireTestAppPassword, express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '50mb' }), async (req, res) => {
+app.post('/api/test/lab-discussion', requireTestAppPassword, express.raw({ type: '*/*', limit: '100mb' }), async (req, res) => {
   if (!SONIOX_API_KEY || SONIOX_API_KEY === 'your_soniox_api_key_here') {
     return res.status(500).json({ error: 'Soniox API key is not configured on the server.' });
   }
@@ -1015,17 +1063,18 @@ app.post('/api/test/lab-discussion', requireTestAppPassword, express.raw({ type:
 
   try {
     const outputLanguage = req.query.language === 'ar' ? 'ar' : 'en';
-    const geminiModel = getRequestedGeminiModel(req);
+    const upload = getAudioUploadMetadata(req, `test-lab-discussion-${Date.now()}.webm`);
     const result = await runTestAudioPipeline(req.body, {
-      filename: `test-lab-discussion-${Date.now()}.webm`,
+      filename: upload.filename,
+      mimeType: upload.mimeType,
       transcriptionConfig: fileId => buildLabDiscussionTranscriptionConfig(fileId, participants),
-      analyze: transcriptText => analyzeLabDiscussionWithGemini(transcriptText, { outputLanguage, geminiModel }),
+      analyze: transcriptText => analyzeLabDiscussionWithGemini(transcriptText, { outputLanguage }),
     });
 
     res.json({
       mode: 'doctor_discussion_test',
       output_language: outputLanguage,
-      gemini_model: geminiModel,
+      gemini_model: GEMINI_MODEL,
       ...result,
       doctor_display: buildLabDoctorDisplay(result.analysis_json, participants.map(p => p.name)),
     });
@@ -1046,6 +1095,7 @@ app.post('/api/transcribe', async (req, res) => {
   }
 
   const { consultationId } = req.body;
+  const outputLanguage = req.body?.language === 'ar' ? 'ar' : 'en';
   if (!consultationId) {
     return res.status(400).json({ error: 'consultationId is required.' });
   }
@@ -1148,7 +1198,7 @@ app.post('/api/transcribe', async (req, res) => {
         if (gemini && plainText.trim().length > 10) {
           console.log(`[Transcribe] Starting Gemini analysis for consultation ${consultationId}...`);
           try {
-            const aiResult = await analyzeTranscriptWithGemini(plainText);
+            const aiResult = await analyzeTranscriptWithGemini(plainText, { outputLanguage });
             cleanedText = getCleanedTranscript(aiResult, plainText);
             cleanedMarkdown = buildCleanTranscriptMarkdown(cleanedText, completedMeta);
 
@@ -1386,6 +1436,7 @@ app.post('/api/labs/discussions/:discussionId/transcribe', async (req, res) => {
   }
 
   const { discussionId } = req.params;
+  const outputLanguage = req.body?.language === 'ar' ? 'ar' : 'en';
   let sonioxFileId = null;
   let sonioxTranscriptionId = null;
 
@@ -1447,7 +1498,7 @@ app.post('/api/labs/discussions/:discussionId/transcribe', async (req, res) => {
         };
 
         if (gemini && plainText.trim().length > 10) {
-          aiResult = await analyzeLabDiscussionWithGemini(plainText);
+          aiResult = await analyzeLabDiscussionWithGemini(plainText, { outputLanguage });
           cleanedText = getCleanedTranscript(aiResult, plainText);
           cleanedMarkdown = buildCleanTranscriptMarkdown(cleanedText, completedMeta);
         }

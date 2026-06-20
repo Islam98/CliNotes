@@ -1,7 +1,10 @@
 import { api } from './api.js';
 import { supabase } from './supabase.js';
+import { applyStaticTranslations, mountLanguageToggle, t } from './i18n.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
+  applyStaticTranslations();
+  mountLanguageToggle();
   // Authentication check
   try {
     const session = await api.auth.getSession();
@@ -235,16 +238,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
           </div>
           <div class="preview-section">
-            <span>Visit Reason</span>
-            <p>${escapeHtml(visitReason || 'No pre-visit reason provided.')}</p>
+            <span>${escapeHtml(t('visitReason'))}</span>
+            <p>${escapeHtml(visitReason || t('noVisitReason'))}</p>
           </div>
           <div class="preview-section">
-            <span>${context.first_visit ? 'Patient Context' : escapeHtml(context.headline || 'Patient Context')}</span>
-            <p>${escapeHtml(context.debrief || 'No patient context available yet.')}</p>
+            <span>${escapeHtml(context.first_visit ? t('patientContext') : (context.headline || t('patientContext')))}</span>
+            <p>${escapeHtml(context.debrief || t('noPatientContext'))}</p>
           </div>
           ${keyPoints.length ? `
             <div class="preview-section">
-              <span>Key Points</span>
+              <span>${escapeHtml(t('keyPoints'))}</span>
               <ul class="preview-bullets">
                 ${keyPoints.slice(0, 5).map(point => `<li>${escapeHtml(point)}</li>`).join('')}
               </ul>
@@ -252,14 +255,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           ` : ''}
           ${suggestedFocus.length ? `
             <div class="preview-section">
-              <span>Suggested Focus Today</span>
+              <span>${escapeHtml(t('suggestedFocusToday'))}</span>
               <ul class="preview-bullets">
                 ${suggestedFocus.slice(0, 4).map(point => `<li>${escapeHtml(point)}</li>`).join('')}
               </ul>
             </div>
           ` : ''}
           <div class="preview-actions">
-            <button class="secondary-btn" onclick="window.location.href='/patient-profile.html?id=${patientId}'"><i class="uil uil-user-square"></i> View Profile</button>
+            <button class="secondary-btn" onclick="window.location.href='/patient-profile.html?id=${patientId}'"><i class="uil uil-user-square"></i> ${escapeHtml(t('viewProfile'))}</button>
           </div>
         </div>
       `;
