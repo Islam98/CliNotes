@@ -372,6 +372,52 @@ function getCleanedTranscript(aiResult, fallbackText = '') {
   return normalizeMixedTranscriptForDisplay(aiResult?.structured_data?.cleaned_transcript || aiResult?.cleaned_transcript || fallbackText || '');
 }
 
+function normalizeRecommendedActionRows(aiResult) {
+  const structured = aiResult?.structured_data || aiResult;
+  const actions = structured?.recommended_actions;
+  if (!actions || typeof actions !== 'object') return aiResult;
+
+  const prescription = actions.prescription;
+  if (prescription?.needed) {
+    const aliases = [prescription.medications, prescription.items, prescription.drugs];
+    prescription.medications = aliases.find(value => Array.isArray(value) && value.length)
+      || aliases.find(Array.isArray)
+      || [];
+    if (!prescription.medications.length) {
+      prescription.medications = actionPlanValues(structured.plan, /medication|medicine|drug|prescription|treatment|دواء|علاج|روشتة/i)
+        .map(value => ({ name: value, dose: '', frequency: '', duration: '', instructions: '' }));
+    }
+  }
+
+  const labOrder = actions.lab_order;
+  if (labOrder?.needed) {
+    const aliases = [labOrder.orders, labOrder.tests, labOrder.imaging_orders, labOrder.imaging];
+    labOrder.orders = aliases.find(value => Array.isArray(value) && value.length)
+      || aliases.find(Array.isArray)
+      || [];
+    if (!labOrder.orders.length) {
+      labOrder.orders = actionPlanValues(structured.plan, /lab|test|imaging|scan|x-?ray|mri|ct|ultrasound|تحليل|تحاليل|أشعة|فحص/i)
+        .map(value => ({ type: inferOrderType(value), name: value, reason: '', priority: 'Routine' }));
+    }
+  }
+
+  return aiResult;
+}
+
+function actionPlanValues(plan, labelPattern) {
+  if (!Array.isArray(plan)) return [];
+  return plan.flatMap(item => {
+    if (!item || typeof item !== 'object') return [];
+    const label = String(item.label || item.type || '');
+    const value = String(item.value || item.description || '').trim();
+    return value && labelPattern.test(`${label} ${value}`) ? [value] : [];
+  });
+}
+
+function inferOrderType(value) {
+  return /imaging|scan|x-?ray|mri|ct|ultrasound|أشعة/i.test(value) ? 'Imaging' : 'Lab';
+}
+
 function normalizeMixedTranscriptForDisplay(text) {
   const value = String(text || '');
   const terms = [
@@ -763,10 +809,14 @@ For recommended_actions:
 - Set follow_up.needed true only when the doctor explicitly asks the patient to return, review results, reassess symptoms, or schedules/plans a future visit. Copy or infer the timing only from the transcript. If follow-up is clearly needed but timing is not stated, use "not specified".
 - Set prescription.needed true only for medications newly prescribed, renewed, stopped, dose-changed, or clearly instructed during this consultation. Include all such medications. Do not include past/home medications unless the doctor changes or explicitly continues them.
 - Set lab_order.needed true only when a lab test, imaging study, scan, or diagnostic test is ordered, requested, or planned.
+- When prescription.needed is true, medications MUST contain one object for every qualifying medication. Never return needed true with an empty medications array. The medication name is required; use empty strings only for optional details that were not stated.
+- When lab_order.needed is true, orders MUST contain one object for every qualifying lab test, scan, imaging study, or diagnostic test. Never return needed true with an empty orders array. The order name and type are required; use empty strings only for an unstated reason.
+- Imaging orders belong in lab_order.orders with type "Imaging" or "Scan". Do not put them only in the general plan and omit them from recommended_actions.
+- Information already extracted into the general plan must also be copied into the corresponding recommended action row when that action is needed.
 - Set referral.needed true only when the doctor recommends seeing another specialist or transferring care to another specialty.
 - If evidence is direct and clear, prefer setting the action to true. If evidence is ambiguous, prefer false.
 - If an action is false, keep its strings empty and arrays empty.
-- For true actions, fill every field that is supported by the transcript and keep status exactly "pending".
+- For true actions, fill every field that is supported by the transcript, preserve the exact medication/test names, and keep status exactly "pending".
 - Do not invent medications, tests, referrals, or follow-up timing.
 ${getGeminiOutputLanguageInstructions(outputLanguage, 'consultation')}
 Ensure the output is strictly valid JSON and nothing else. All line breaks inside string values, especially cleaned_transcript, must be escaped as \\n so the response remains valid JSON.
@@ -782,7 +832,8 @@ Ensure the output is strictly valid JSON and nothing else. All line breaks insid
   });
 
   const response = await model.generateContent(transcriptText);
-  return parseGeminiJsonResponse(response, 'consultation analysis', geminiModel);
+  const result = await parseGeminiJsonResponse(response, 'consultation analysis', geminiModel);
+  return normalizeRecommendedActionRows(result);
 }
 
 async function analyzeLabDiscussionWithGemini(transcriptText, { outputLanguage = 'en', geminiModel = GEMINI_MODEL } = {}) {
