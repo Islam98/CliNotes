@@ -175,6 +175,7 @@ const copy = {
     frequency: 'Frequency',
     duration: 'Duration',
     instructions: 'Instructions',
+    diagnosis: 'Diagnosis',
     type: 'Type',
     order: 'Order',
     priority: 'Priority',
@@ -296,6 +297,7 @@ const copy = {
     frequency: 'التكرار',
     duration: 'المدة',
     instructions: 'التعليمات',
+    diagnosis: 'التشخيص',
     type: 'النوع',
     order: 'الطلب',
     priority: 'الأولوية',
@@ -886,6 +888,7 @@ function extractRecommendedActions(analysisJson = {}) {
 
   if (actions.prescription?.needed) {
     const medications = Array.isArray(actions.prescription.medications) ? actions.prescription.medications : [];
+    const diagnosis = formatDiagnosis(structured.assessment?.diagnoses);
     result.push({
       key: 'prescription',
       type: 'prescription',
@@ -893,11 +896,14 @@ function extractRecommendedActions(analysisJson = {}) {
       tone: 'medication',
       title: t('prescriptionTitle'),
       detail: medications.map(med => med.name).filter(Boolean).join(', ') || t('prescriptionDefault'),
-      data: actions.prescription,
-      body: medications.map(med => [
-        med.name || t('medication'),
-        [med.dose, med.frequency, med.duration, med.instructions].filter(Boolean).join(' - ')
-      ])
+      data: { ...actions.prescription, diagnosis },
+      body: [
+        [t('diagnosis'), diagnosis],
+        ...medications.map(med => [
+          med.name || t('medication'),
+          [med.dose, med.frequency, med.duration, med.instructions].filter(Boolean).join(' - ')
+        ])
+      ]
     });
   }
 
@@ -936,6 +942,11 @@ function extractRecommendedActions(analysisJson = {}) {
   }
 
   return result;
+}
+
+function formatDiagnosis(diagnoses) {
+  if (Array.isArray(diagnoses)) return diagnoses.filter(Boolean).join(', ');
+  return String(diagnoses || '').trim();
 }
 
 function renderRecommendedActions(actions) {
@@ -1050,6 +1061,10 @@ function renderPrintableActionDetails(action) {
   if (action.type === 'prescription') {
     const medications = Array.isArray(data.medications) ? data.medications : [];
     return `
+      <div class="section">
+        <h2>${escapeHtml(t('diagnosis'))}</h2>
+        <p>${formatBidiText(data.diagnosis || t('notReturned'))}</p>
+      </div>
       <table>
         <thead><tr><th>${escapeHtml(t('medication'))}</th><th>${escapeHtml(t('dose'))}</th><th>${escapeHtml(t('frequency'))}</th><th>${escapeHtml(t('duration'))}</th><th>${escapeHtml(t('instructions'))}</th></tr></thead>
         <tbody>

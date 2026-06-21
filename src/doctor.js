@@ -124,6 +124,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     if (isPending(actions.prescription) && Array.isArray(actions.prescription.medications) && actions.prescription.medications.length) {
+      const diagnoses = structured.assessment?.diagnoses;
+      const diagnosis = Array.isArray(diagnoses)
+        ? diagnoses.filter(Boolean).join(', ')
+        : String(diagnoses || '').trim();
       result.push({
         ...base,
         type: 'prescription',
@@ -132,7 +136,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         tone: 'medication',
         title: 'Review prescription draft',
         detail: actions.prescription.medications.map(m => m.name).filter(Boolean).join(', ') || 'Medication draft ready',
-        data: actions.prescription
+        data: { ...actions.prescription, diagnosis }
       });
     }
 
@@ -1363,6 +1367,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="action-document-shell prescription-shell">
           ${actionDocumentHero('Prescription Draft', action.patientName, 'uil-capsule')}
           ${meta}
+          <div class="action-form-grid">
+            ${actionField('Diagnosis', data.diagnosis, 'diagnosis', 2)}
+          </div>
           <div class="action-table" data-action-list="medications">
             <div class="action-table-head"><span>Medication</span><span>Dose</span><span>Frequency</span><span>Duration</span><span>Instructions</span></div>
             ${medications.map((med, index) => `
@@ -1440,6 +1447,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (action.type === 'prescription') {
       return {
         ...action.data,
+        diagnosis: content.querySelector('[data-action-field="diagnosis"]')?.value || '',
         medications: Array.from(content.querySelectorAll('.action-table-row')).map(row => ({
           name: row.querySelector('[data-list-field="name"]')?.value || '',
           dose: row.querySelector('[data-list-field="dose"]')?.value || '',
@@ -1549,6 +1557,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (action.type === 'prescription') {
       const medications = Array.isArray(data.medications) ? data.medications : [];
       return `
+        <div class="section">
+          <h2>Diagnosis</h2>
+          <p>${escapeHtml(data.diagnosis || 'Not documented')}</p>
+        </div>
         <table>
           <thead><tr><th>Medication</th><th>Dose</th><th>Frequency</th><th>Duration</th><th>Instructions</th></tr></thead>
           <tbody>

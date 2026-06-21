@@ -43,6 +43,8 @@ if (supabaseUrl && supabaseServiceKey && supabaseServiceKey !== 'your_supabase_s
 // ─── Soniox Config ───
 const SONIOX_API_KEY = process.env.SONIOX_API_KEY;
 const SONIOX_API_BASE = 'https://api.soniox.com';
+const SONIOX_ASYNC_MODEL = 'stt-async-v4';
+const SONIOX_TEST_MODEL = 'stt-async-v5';
 
 // ==========================================
 // Soniox Helper Functions
@@ -137,9 +139,9 @@ async function uploadToSoniox(audioBuffer, filename, mimeType = 'application/oct
   return sonioxFetch('/v1/files', { method: 'POST', body: form });
 }
 
-function buildTranscriptionConfig(fileId) {
+function buildTranscriptionConfig(fileId, model = SONIOX_ASYNC_MODEL) {
   return {
-    model: 'stt-async-v4',
+    model,
     file_id: fileId,
     // Enable speaker diarization to separate doctor vs patient
     enable_speaker_diarization: true,
@@ -203,10 +205,10 @@ when the rest of the conversation is in Arabic.`,
   };
 }
 
-function buildLabDiscussionTranscriptionConfig(fileId, participants = []) {
+function buildLabDiscussionTranscriptionConfig(fileId, participants = [], model = SONIOX_ASYNC_MODEL) {
   const participantNames = participants.map(p => p.name).filter(Boolean).join(', ') || 'multiple doctors';
   return {
-    ...buildTranscriptionConfig(fileId),
+    ...buildTranscriptionConfig(fileId, model),
     context: {
       general: [
         { key: 'domain', value: 'Healthcare / Internal clinical discussion' },
@@ -273,7 +275,8 @@ async function runTestAudioPipeline(audioBuffer, { filename, mimeType, transcrip
     const uploadResult = await uploadToSoniox(audioBuffer, filename, mimeType);
     sonioxFileId = uploadResult.id;
 
-    const transcription = await createTranscription(transcriptionConfig(sonioxFileId));
+    const config = transcriptionConfig(sonioxFileId);
+    const transcription = await createTranscription(config);
     sonioxTranscriptionId = transcription.id;
 
     const completedMeta = await waitForTranscription(sonioxTranscriptionId);
@@ -301,6 +304,7 @@ async function runTestAudioPipeline(audioBuffer, { filename, mimeType, transcrip
       transcript_text: cleanedText,
       transcript_markdown: markdownText,
       soniox_meta: {
+        model: config.model,
         duration_ms: completedMeta.audio_duration_ms || null,
         transcription_id: sonioxTranscriptionId,
       },
@@ -803,6 +807,12 @@ SOAP detail rules:
 - If a detail is not mentioned, leave the field empty instead of guessing.
 
 For cleaned_transcript: keep the transcript meaning, order, speakers if obvious, and wording as close as possible to the Soniox transcript. Do not summarize. Do not add facts. Only correct obvious transcription mistakes, especially English medical terminology that was mistakenly written phonetically or in Arabic alphabet inside Arabic speech. Examples: "سي تي" -> "[CT]", "ام ار اي" -> "[MRI]", "اتش بي اي ون سي" -> "[HbA1c]", "كرياتينين" -> "[creatinine]" when it is clearly the medical term. Preserve Arabic sentences as Arabic. When an English medical term appears inside an Arabic sentence, write it in Latin letters inside square brackets to prevent mixed-direction display issues.
+Medication-name cleanup is especially important:
+- Check every medication mention against your medical knowledge and write a real, correctly spelled generic or brand medication name rather than preserving a non-existent phonetic spelling.
+- When the source contains an Arabic transliteration or a slightly corrupted Latin spelling, convert it to the nearest real medication name supported by pronunciation, dose, indication, and surrounding clinical context.
+- If a mention is ambiguous but one real medication is clearly the closest contextual and phonetic match, use that canonical medication name.
+- Never replace an unclear mention with an unrelated medication merely because it is common. If no candidate is reasonably supported, preserve the unclear wording and mark it "[unclear medication]" instead of inventing a drug.
+- Keep canonical medication names in Latin letters. In Arabic output, write the Arabic name or transliteration followed by the canonical name in square brackets.
 For recommended_actions:
 - Decide recommended_actions from transcript evidence using the same criteria every time.
 - These four action types are the only allowed action types.
@@ -858,6 +868,7 @@ The discussion may include Arabic-English code switching. Return strictly valid 
   }
 }
 For cleaned_transcript: keep the transcript meaning, order, speakers if obvious, and wording as close as possible to the Soniox transcript. Do not summarize. Do not add facts. Only correct obvious transcription mistakes, especially English lab/imaging/medical terminology that was mistakenly written phonetically or in Arabic alphabet inside Arabic speech. Examples: "سي بي سي" -> "[CBC]", "سي تي" -> "[CT]", "ام ار اي" -> "[MRI]", "اتش بي اي ون سي" -> "[HbA1c]", "دي دايمر" -> "[D-dimer]". Preserve Arabic sentences as Arabic. When an English medical term appears inside an Arabic sentence, write it in Latin letters inside square brackets to prevent mixed-direction display issues.
+For medication mentions in cleaned_transcript, verify that each drug name is a real, correctly spelled medication. Correct Arabic transliterations and corrupted Latin spellings to the nearest canonical generic or brand name supported by pronunciation, dose, indication, and clinical context. If one candidate is clearly the closest match, use it. If no candidate is reasonably supported, preserve the wording and mark it "[unclear medication]" rather than inventing a drug. Keep canonical medication names in Latin letters; in Arabic text, place the canonical name in square brackets after the Arabic name or transliteration.
 Do not invent facts. If an item is not mentioned, use an empty array.
 ${getGeminiOutputLanguageInstructions(outputLanguage, 'lab')}
 Ensure all line breaks inside string values, especially cleaned_transcript, are escaped as \\n so the response remains valid JSON.
@@ -1103,7 +1114,7 @@ app.post('/api/test/consultation', requireTestAppPassword, express.raw({ type: '
     const result = await runTestAudioPipeline(req.body, {
       filename: upload.filename,
       mimeType: upload.mimeType,
-      transcriptionConfig: fileId => buildTranscriptionConfig(fileId),
+      transcriptionConfig: fileId => buildTranscriptionConfig(fileId, SONIOX_TEST_MODEL),
       analyze: transcriptText => analyzeTranscriptWithGemini(transcriptText, { outputLanguage }),
     });
 
@@ -1144,7 +1155,7 @@ app.post('/api/test/lab-discussion', requireTestAppPassword, express.raw({ type:
     const result = await runTestAudioPipeline(req.body, {
       filename: upload.filename,
       mimeType: upload.mimeType,
-      transcriptionConfig: fileId => buildLabDiscussionTranscriptionConfig(fileId, participants),
+      transcriptionConfig: fileId => buildLabDiscussionTranscriptionConfig(fileId, participants, SONIOX_TEST_MODEL),
       analyze: transcriptText => analyzeLabDiscussionWithGemini(transcriptText, { outputLanguage }),
     });
 

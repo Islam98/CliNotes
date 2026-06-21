@@ -14,6 +14,7 @@ const port = process.env.PORT || 3000;
 
 const SONIOX_API_KEY = process.env.SONIOX_API_KEY;
 const SONIOX_API_BASE = 'https://api.soniox.com';
+const SONIOX_TEST_MODEL = 'stt-async-v5';
 const geminiApiKey = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
 const testAppPassword = process.env.TEST_APP_PASSWORD;
@@ -105,7 +106,7 @@ async function uploadToSoniox(audioBuffer, filename, mimeType = 'application/oct
 
 function buildTranscriptionConfig(fileId) {
   return {
-    model: 'stt-async-v4',
+    model: SONIOX_TEST_MODEL,
     file_id: fileId,
     enable_speaker_diarization: true,
     enable_language_identification: true,
@@ -192,7 +193,8 @@ async function runTestAudioPipeline(audioBuffer, { filename, mimeType, transcrip
   try {
     const uploadResult = await uploadToSoniox(audioBuffer, filename, mimeType);
     sonioxFileId = uploadResult.id;
-    const transcription = await createTranscription(transcriptionConfig(sonioxFileId));
+    const config = transcriptionConfig(sonioxFileId);
+    const transcription = await createTranscription(config);
     sonioxTranscriptionId = transcription.id;
     const completedMeta = await waitForTranscription(sonioxTranscriptionId);
     const transcriptResult = await sonioxFetch(`/v1/transcriptions/${sonioxTranscriptionId}/transcript`);
@@ -217,6 +219,7 @@ async function runTestAudioPipeline(audioBuffer, { filename, mimeType, transcrip
       transcript_text: cleanedText,
       transcript_markdown: markdownText,
       soniox_meta: {
+        model: config.model,
         duration_ms: completedMeta.audio_duration_ms || null,
         transcription_id: sonioxTranscriptionId,
       },
@@ -335,6 +338,12 @@ Recommended action rules:
 - If an action is false, keep its strings empty and arrays empty.
 - For true actions, fill every field that is supported by the transcript, preserve the exact medication/test names, and keep status exactly "pending".
 For cleaned_transcript, preserve meaning and order; correct obvious English medical terminology mistakes.
+Medication-name cleanup is especially important:
+- Check every medication mention against your medical knowledge and write a real, correctly spelled generic or brand medication name rather than preserving a non-existent phonetic spelling.
+- When Soniox produced an Arabic transliteration or a slightly corrupted Latin spelling, convert it to the nearest real medication name supported by the pronunciation, dose, indication, and surrounding clinical context.
+- If a mention is ambiguous but one real medication is clearly the closest contextual and phonetic match, use that canonical medication name.
+- Never replace an unclear mention with an unrelated medication merely because it is common. If no candidate is reasonably supported, preserve the unclear wording and mark it "[unclear medication]" instead of inventing a drug.
+- Keep canonical medication names in Latin letters. In Arabic output, write the Arabic name or transliteration followed by the canonical name in square brackets.
 ${getOutputLanguageInstructions(outputLanguage, 'consultation')}
 All line breaks inside string values must be escaped as \\n.
 `;
@@ -370,6 +379,7 @@ Return strictly valid JSON:
   }
 }
 Do not invent facts. If an item is not mentioned, use an empty array.
+For cleaned_transcript medication mentions, verify that each drug name is a real, correctly spelled medication. Correct Arabic transliterations and corrupted Latin spellings to the nearest canonical generic or brand name supported by pronunciation and clinical context. If one candidate is clearly the closest match, use it. If no candidate is reasonably supported, preserve the wording and mark it "[unclear medication]" rather than inventing a drug. Keep canonical medication names in Latin letters; in Arabic text, place the canonical name in square brackets after the Arabic name or transliteration.
 ${getOutputLanguageInstructions(outputLanguage, 'lab')}
 All line breaks inside string values must be escaped as \\n.
 `;
