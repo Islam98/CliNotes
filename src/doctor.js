@@ -884,8 +884,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       mediaRecorder.onstop = async () => {
         const recordedMimeType = mediaRecorder.mimeType || audioChunks[0]?.type || 'audio/webm';
         const recordedBlob = new Blob(audioChunks, { type: recordedMimeType });
-        const audioBlob = await normalizeRecordedAudio(recordedBlob);
         stream.getTracks().forEach(track => track.stop());
+        let audioBlob;
+        try {
+          audioBlob = await normalizeRecordedAudio(recordedBlob);
+        } catch (error) {
+          alert(error.message || 'Could not prepare the recording.');
+          overlayStopBtn.innerHTML = '<i class="uil uil-stop-circle"></i> Stop Recording';
+          overlayStopBtn.disabled = false;
+          recordingOverlay.classList.add('hidden');
+          return;
+        }
 
         if (currentConsultationId) {
           try {
@@ -929,7 +938,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       };
 
-      mediaRecorder.start(1000);
+      mediaRecorder.start();
     } catch (err) {
       console.error("Microphone access denied or not available:", err);
       alert("Microphone access is required to record a consultation.");

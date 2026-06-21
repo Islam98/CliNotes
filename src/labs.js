@@ -70,14 +70,24 @@ startBtn.addEventListener('click', async () => {
     };
 
     mediaRecorder.onstop = async () => {
-      const recordedMimeType = mediaRecorder.mimeType || audioChunks[0]?.type || 'audio/webm';
-      const recordedBlob = new Blob(audioChunks, { type: recordedMimeType });
-      const audioBlob = await normalizeRecordedAudio(recordedBlob);
-      stream.getTracks().forEach(track => track.stop());
-      await processDiscussion(audioBlob);
+      try {
+        const recordedMimeType = mediaRecorder.mimeType || audioChunks[0]?.type || 'audio/webm';
+        const recordedBlob = new Blob(audioChunks, { type: recordedMimeType });
+        const audioBlob = await normalizeRecordedAudio(recordedBlob);
+        await processDiscussion(audioBlob);
+      } catch (error) {
+        showToast(error.message || 'Could not prepare the recording.');
+        stopTimer();
+        recordingPanel.classList.add('hidden');
+        startBtn.disabled = false;
+        stopBtn.disabled = false;
+        stopBtn.innerHTML = '<i class="uil uil-stop-circle"></i> Stop & Process';
+      } finally {
+        stream.getTracks().forEach(track => track.stop());
+      }
     };
 
-    mediaRecorder.start(1000);
+    mediaRecorder.start();
     startTimer();
     recordingPanel.classList.remove('hidden');
     startBtn.disabled = true;

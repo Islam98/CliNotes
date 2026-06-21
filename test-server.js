@@ -197,10 +197,18 @@ async function runTestAudioPipeline(audioBuffer, { filename, mimeType, transcrip
     const completedMeta = await waitForTranscription(sonioxTranscriptionId);
     const transcriptResult = await sonioxFetch(`/v1/transcriptions/${sonioxTranscriptionId}/transcript`);
     const plainText = transcriptResult.text || '';
+    if (plainText.trim().length <= 10) {
+      console.error('[Test transcription] No usable speech returned by Soniox.', {
+        filename,
+        mimeType,
+        bytes: audioBuffer.length,
+        durationMs: completedMeta.audio_duration_ms || null,
+        tokenCount: transcriptResult.tokens?.length || 0,
+      });
+      throw new Error('No usable speech was detected in the recording. Check that the correct microphone is selected and audible, then try again.');
+    }
     const markdownText = renderTranscriptMarkdown(transcriptResult.tokens || [], completedMeta);
-    const aiResult = plainText.trim().length > 10
-      ? await analyze(plainText)
-      : { summary_text: 'No usable speech was detected.', structured_data: {} };
+    const aiResult = await analyze(plainText);
     const cleanedText = getCleanedTranscript(aiResult, plainText);
     await cleanupSoniox(sonioxTranscriptionId, sonioxFileId);
 

@@ -491,8 +491,32 @@ function renderMockDoctors() {
 }
 
 async function startRecording() {
+  let stream;
   try {
-    state.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    if (!window.isSecureContext) {
+      throw new Error('Microphone recording requires a secure HTTPS page.');
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('Microphone recording is not available in this browser.');
+    }
+
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount: { ideal: 1 },
+        echoCancellation: { ideal: true },
+        noiseSuppression: { ideal: true },
+        autoGainControl: { ideal: true },
+      },
+    });
+    const microphoneTrack = stream.getAudioTracks()[0];
+    const microphoneLabel = microphoneTrack?.label || '';
+    console.info('[CliNotes] Active microphone:', microphoneLabel || 'unlabelled device');
+    if (/\bfake\b.*\b(audio|microphone|input)\b|\b(audio|microphone|input)\b.*\bfake\b/i.test(microphoneLabel)) {
+      const fakeDeviceError = new Error(`Chromium selected a fake microphone device (${microphoneLabel}).`);
+      fakeDeviceError.name = 'FakeAudioDeviceError';
+      throw fakeDeviceError;
+    }
+    state.stream = stream;
     state.mediaRecorder = createAudioRecorder(state.stream);
     state.chunks = [];
 
@@ -501,14 +525,21 @@ async function startRecording() {
     };
 
     state.mediaRecorder.onstop = async () => {
-      const recordedMimeType = state.mediaRecorder.mimeType || state.chunks[0]?.type || 'audio/webm';
-      const recordedBlob = new Blob(state.chunks, { type: recordedMimeType });
-      state.stream.getTracks().forEach(track => track.stop());
-      const audioBlob = await normalizeRecordedAudio(recordedBlob);
-      runPipeline(audioBlob, { originalFilename: `clinotes-recording.${getAudioExtension(audioBlob)}` });
+      try {
+        const recordedMimeType = state.mediaRecorder.mimeType || state.chunks[0]?.type || 'audio/webm';
+        const recordedBlob = new Blob(state.chunks, { type: recordedMimeType });
+        const audioBlob = await normalizeRecordedAudio(recordedBlob);
+        await runPipeline(audioBlob, { originalFilename: `clinotes-recording.${getAudioExtension(audioBlob)}` });
+      } catch (error) {
+        renderPipelineError(error);
+      } finally {
+        state.stream?.getTracks().forEach(track => track.stop());
+      }
     };
 
-    state.mediaRecorder.start(1000);
+    // A single complete blob is more reliable than concatenated WebM fragments,
+    // particularly in Chromium where only the first fragment has a container header.
+    state.mediaRecorder.start();
     state.seconds = 0;
     els.recordingTimer.textContent = '00:00';
     state.timer = setInterval(tickTimer, 1000);
@@ -519,9 +550,46 @@ async function startRecording() {
     els.stopRecordBtn.disabled = false;
     renderDiagnostics(0);
   } catch (error) {
-    alert(t('microphoneError'));
     console.error(error);
+    stream?.getTracks().forEach(track => track.stop());
+    state.stream = null;
+    renderPipelineError(new Error(getMicrophoneErrorMessage(error)));
   }
+}
+
+function getMicrophoneErrorMessage(error) {
+  const arabic = state.language === 'ar';
+  const messages = {
+    NotAllowedError: arabic
+      ? 'تم حظر الميكروفون. اسمح للموقع باستخدامه من رمز القفل بجوار عنوان الصفحة، ثم أعد تحميلها.'
+      : 'Microphone access is blocked. Allow it from the lock icon beside the page address, then reload the page.',
+    PermissionDeniedError: arabic
+      ? 'تم رفض إذن الميكروفون. اسمح للموقع باستخدامه من إعدادات Chrome، ثم أعد تحميل الصفحة.'
+      : 'Microphone permission was denied. Allow it in Chrome site settings, then reload the page.',
+    NotFoundError: arabic
+      ? 'لم يعثر Chrome على ميكروفون متاح. تحقق من توصيل الميكروفون وإعدادات الصوت.'
+      : 'Chrome could not find an available microphone. Check the connected microphone and system sound settings.',
+    DevicesNotFoundError: arabic
+      ? 'لم يتم العثور على ميكروفون متصل بالجهاز.'
+      : 'No connected microphone was found.',
+    NotReadableError: arabic
+      ? 'تعذر على Chrome تشغيل الميكروفون. أغلق أي تطبيق آخر يستخدمه وتحقق من إذن الميكروفون في إعدادات النظام.'
+      : 'Chrome could not start the microphone. Close other apps using it and check the system microphone permission.',
+    TrackStartError: arabic
+      ? 'الميكروفون مستخدم حاليا بواسطة تطبيق آخر.'
+      : 'The microphone is currently being used by another application.',
+    OverconstrainedError: arabic
+      ? 'لا يدعم الميكروفون إعدادات التسجيل المطلوبة. اختر ميكروفونا آخر من إعدادات Chrome.'
+      : 'The selected microphone does not support the requested recording settings. Choose another microphone in Chrome.',
+    FakeAudioDeviceError: arabic
+      ? 'يستخدم Chromium ميكروفونا تجريبيا يصدر صفارات بدلا من صوتك. افتح الرابط مباشرة في Chrome العادي، وليس داخل معاينة IDE أو متصفح آلي، وتأكد من تشغيل Chrome من دون الخيار --use-fake-device-for-media-stream.'
+      : 'Chromium is using a test microphone that produces beeps instead of your voice. Open the link directly in normal Chrome, not an IDE preview or automated browser, and make sure Chrome is not launched with --use-fake-device-for-media-stream.',
+    SecurityError: arabic
+      ? 'تمنع إعدادات أمان المتصفح هذه الصفحة من استخدام الميكروفون.'
+      : 'Browser security settings prevent this page from using the microphone.',
+  };
+
+  return messages[error?.name] || error?.message || t('microphoneError');
 }
 
 async function handleConsultationUpload(event) {
@@ -576,21 +644,30 @@ async function runPipeline(audioBlob, { originalFilename = '' } = {}) {
     renderOutput(result);
     updateDownloadButtons();
   } catch (error) {
-    setBidiContent(els.outputSubtitle, t('pipelineFailed'));
-    els.outputContent.className = '';
-    els.outputContent.innerHTML = `
-      <section class="output-section">
-        <h3>${escapeHtml(t('pipelineError'))}</h3>
-        <div class="display-tile"><p>${escapeHtml(error.message || 'Unknown error')}</p></div>
-      </section>
-    `;
-    updateDownloadButtons();
+    renderPipelineError(error);
   } finally {
     els.recordingDot.classList.remove('active');
     setBidiContent(els.recordingLabel, t('ready'));
     els.startRecordBtn.disabled = false;
     els.stopRecordBtn.disabled = true;
   }
+}
+
+function renderPipelineError(error) {
+  clearInterval(state.timer);
+  setBidiContent(els.outputSubtitle, t('pipelineFailed'));
+  els.outputContent.className = '';
+  els.outputContent.innerHTML = `
+    <section class="output-section">
+      <h3>${escapeHtml(t('pipelineError'))}</h3>
+      <div class="display-tile"><p>${escapeHtml(error?.message || 'Unknown error')}</p></div>
+    </section>
+  `;
+  els.recordingDot.classList.remove('active');
+  setBidiContent(els.recordingLabel, t('ready'));
+  els.startRecordBtn.disabled = false;
+  els.stopRecordBtn.disabled = true;
+  updateDownloadButtons();
 }
 
 async function submitAudio(audioBlob, { originalFilename = '' } = {}) {
